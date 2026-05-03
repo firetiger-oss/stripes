@@ -18,7 +18,6 @@ import (
 var (
 	protoKeyStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true) // Yellow bold for keys
 	protoStringStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))             // Green for string values
-	protoTypeStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("5")).Bold(true)  // Purple bold for types
 	protoDelimStyle  = lipgloss.NewStyle().Bold(true)                                  // Bold delimiters
 	protoWireStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))             // Grey for wire format
 )
@@ -374,10 +373,6 @@ func renderAnyValue(w io.Writer, msg protoreflect.Message, typeResolver protoreg
 	}
 
 	fmt.Fprint(w, protoDelimStyle.Render("}"))
-}
-
-func renderScalarValue(w io.Writer, value protoreflect.Value, kind protoreflect.Kind) {
-	renderScalarValueWithStyles(w, value, kind, nil)
 }
 
 func renderScalarValueWithStyles(w io.Writer, value protoreflect.Value, kind protoreflect.Kind, styles *Styles) {

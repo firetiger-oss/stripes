@@ -4,16 +4,6 @@ import (
 	"encoding/xml"
 	"io"
 	"strings"
-
-	"github.com/charmbracelet/lipgloss"
-)
-
-var (
-	// XML styling
-	xmlTagStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("13")) // Light purple
-	xmlAttrKeyStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))  // Yellow
-	xmlAttrValueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))  // Green
-	xmlCommentStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))  // Red
 )
 
 func XML(w io.Writer, r io.Reader, styles *Styles) {

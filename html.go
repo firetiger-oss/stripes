@@ -4,16 +4,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/net/html"
-)
-
-var (
-	// HTML styling
-	htmlTagStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("12"))            // Light blue
-	htmlAttrKeyStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))             // Yellow
-	htmlAttrValueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))             // Green
-	htmlCommentStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Faint(true) // Dimmed grey
 )
 
 func HTML(w io.Writer, r io.Reader, styles *Styles) {
