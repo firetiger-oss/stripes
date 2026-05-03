@@ -144,7 +144,7 @@ func run(cfg *config, file string) error {
 		contentType = stripes.Detect(name, peek)
 	}
 
-	renderer := stripes.ObjectFunc(contentType, cfg.schema)
+	renderer := stripes.Func(contentType, cfg.schema)
 	if renderer == nil {
 		renderer = stripes.Plain
 	}

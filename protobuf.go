@@ -22,7 +22,7 @@ var (
 	protoWireStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))             // Grey for wire format
 )
 
-func Protobuf(d protoreflect.MessageDescriptor, t protoregistry.MessageTypeResolver) Func {
+func Protobuf(d protoreflect.MessageDescriptor, t protoregistry.MessageTypeResolver) Renderer {
 	if d == nil {
 		return func(w io.Writer, r io.Reader, styles *Styles) {
 			printProtobufWire(w, r, styles)

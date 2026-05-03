@@ -23,14 +23,15 @@ dumps, RPC responses).
 
 ## Library
 
-### [stripes.ObjectFunc](https://pkg.go.dev/github.com/firetiger-oss/stripes#ObjectFunc)
+### [stripes.Func](https://pkg.go.dev/github.com/firetiger-oss/stripes#Func)
 
-Pick a renderer by MIME type. Returns `nil` if the content type is unsupported.
+Pick a [`Renderer`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Renderer)
+by MIME type. Returns `nil` if the content type is unsupported.
 
 ```go
 import "github.com/firetiger-oss/stripes"
 
-renderer := stripes.ObjectFunc("application/json", "")
+renderer := stripes.Func("application/json", "")
 renderer(os.Stdout, body, stripes.DefaultStyles)
 ```
 
@@ -44,7 +45,7 @@ Resolve a content type from a filename and/or the leading bytes of a stream.
 ```go
 buf, _ := bufio.NewReader(input).Peek(512)
 ct := stripes.Detect("payload.yaml", buf)
-renderer := stripes.ObjectFunc(ct, "")
+renderer := stripes.Func(ct, "")
 ```
 
 ### Format functions
@@ -60,7 +61,7 @@ renderer := stripes.ObjectFunc(ct, "")
 | `application/protobuf`   | [`Protobuf`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Protobuf)                                |
 | (passthrough)            | [`Plain`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Plain)                                      |
 
-All share the [`Func`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Func)
+All share the [`Renderer`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Renderer)
 signature: `func(io.Writer, io.Reader, *Styles)`.
 
 ### [stripes.Styles](https://pkg.go.dev/github.com/firetiger-oss/stripes#Styles)

@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestObjectFunc(t *testing.T) {
+func TestFunc(t *testing.T) {
 	testCases := []struct {
 		name        string
 		contentType string
@@ -104,15 +104,15 @@ func TestObjectFunc(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			renderFunc := ObjectFunc(tc.contentType, tc.schemaURL)
+			renderFunc := Func(tc.contentType, tc.schemaURL)
 
 			if tc.expectNil {
 				if renderFunc != nil {
-					t.Errorf("Expected ObjectFunc to return nil for content type %q, but got a function", tc.contentType)
+					t.Errorf("Expected Func to return nil for content type %q, but got a function", tc.contentType)
 				}
 			} else {
 				if renderFunc == nil {
-					t.Errorf("Expected ObjectFunc to return a function for content type %q, but got nil", tc.contentType)
+					t.Errorf("Expected Func to return a function for content type %q, but got nil", tc.contentType)
 				}
 				// We can't easily test the exact function type without more complex reflection,
 				// but we can at least verify a function was returned
@@ -121,7 +121,7 @@ func TestObjectFunc(t *testing.T) {
 	}
 }
 
-func TestObjectFuncEdgeCases(t *testing.T) {
+func TestFuncEdgeCases(t *testing.T) {
 	testCases := []struct {
 		name        string
 		contentType string
@@ -156,15 +156,15 @@ func TestObjectFuncEdgeCases(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			renderFunc := ObjectFunc(tc.contentType, tc.schemaURL)
+			renderFunc := Func(tc.contentType, tc.schemaURL)
 
 			if tc.expectNil {
 				if renderFunc != nil {
-					t.Errorf("Expected ObjectFunc to return nil for content type %q, but got a function", tc.contentType)
+					t.Errorf("Expected Func to return nil for content type %q, but got a function", tc.contentType)
 				}
 			} else {
 				if renderFunc == nil {
-					t.Errorf("Expected ObjectFunc to return a function for content type %q, but got nil", tc.contentType)
+					t.Errorf("Expected Func to return a function for content type %q, but got nil", tc.contentType)
 				}
 			}
 		})

@@ -9,9 +9,12 @@ import (
 	"google.golang.org/protobuf/reflect/protoregistry"
 )
 
-// ObjectFunc returns the appropriate render function for the given content type and schema URL.
-// Returns nil if no suitable renderer is found for the content type.
-func ObjectFunc(contentType, schemaURL string) Func {
+// Func returns the [Renderer] matching contentType (a MIME media type), or
+// nil if the content type is unsupported. For application/protobuf,
+// schemaURL is interpreted as the full message name used to look up the
+// descriptor in [protoregistry.GlobalTypes] / [protoregistry.GlobalFiles];
+// for other formats it is ignored.
+func Func(contentType, schemaURL string) Renderer {
 	mediaType, _, _ := mime.ParseMediaType(contentType)
 
 	if strings.HasPrefix(mediaType, "application/") {

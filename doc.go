@@ -6,8 +6,8 @@
 //	stripes.JSON(w, r, &stripes.DefaultStyles)
 //
 // where w is the styled output sink, r is the raw input stream, and the
-// [Styles] value selects colors and layout. [ObjectFunc] dispatches by MIME
-// type, and [Detect] sniffs an unknown stream into a content-type string.
+// [Styles] value selects colors and layout. [Func] dispatches by MIME type,
+// and [Detect] sniffs an unknown stream into a content-type string.
 //
 // The companion command [github.com/firetiger-oss/stripes/cmd/stripes] is a
 // file viewer that wraps these primitives with format auto-detection,

@@ -6,8 +6,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Func is a render function that takes a writer, reader, and styles
-type Func func(io.Writer, io.Reader, *Styles)
+// Renderer writes styled output for a single input format. All format
+// functions in this package (JSON, YAML, XML, ...) match this signature.
+type Renderer func(io.Writer, io.Reader, *Styles)
 
 // Styles defines the styling configuration for rendering various data types
 type Styles struct {

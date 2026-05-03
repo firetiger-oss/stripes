@@ -15,7 +15,7 @@ import (
 //  3. net/http.DetectContentType fallback.
 //  4. "text/plain" if nothing else matched.
 //
-// The returned string is a MIME media type compatible with [ObjectFunc].
+// The returned string is a MIME media type compatible with [Func].
 // Empty name and nil peek both return "text/plain".
 func Detect(name string, peek []byte) string {
 	if ct := detectByExtension(name); ct != "" {
