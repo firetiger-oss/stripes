@@ -14,7 +14,6 @@ import (
 	lgtable "github.com/charmbracelet/lipgloss/table"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
-	"github.com/muesli/reflow/wordwrap"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
@@ -31,11 +30,7 @@ func Markdown(w io.Writer, r io.Reader, styles *Styles) {
 	md := goldmark.New(goldmark.WithExtensions(extension.GFM))
 	root := md.Parser().Parse(text.NewReader(src))
 
-	width := styles.Width
-	if width <= 0 {
-		width = 80
-	}
-	ctx := &mdContext{src: src, styles: styles, width: width, color: stylesEmitANSI(styles)}
+	ctx := &mdContext{src: src, styles: styles, width: styles.Width, color: stylesEmitANSI(styles)}
 	renderMarkdownBlocks(w, root, ctx)
 }
 
@@ -81,7 +76,11 @@ func renderMarkdownBlock(w io.Writer, n ast.Node, ctx *mdContext) {
 	case ast.KindParagraph, ast.KindTextBlock:
 		renderParagraph(w, n, ctx)
 	case ast.KindThematicBreak:
-		io.WriteString(w, ctx.styles.Syntax.Render(strings.Repeat("─", ctx.width)))
+		hrW := ctx.width
+		if hrW <= 0 {
+			hrW = 80
+		}
+		io.WriteString(w, ctx.styles.Syntax.Render(strings.Repeat("─", hrW)))
 	case ast.KindFencedCodeBlock:
 		fb := n.(*ast.FencedCodeBlock)
 		renderCodeBlock(w, fb.Lines().Value(ctx.src), string(fb.Language(ctx.src)), ctx)
@@ -99,24 +98,118 @@ func renderMarkdownBlock(w io.Writer, n ast.Node, ctx *mdContext) {
 }
 
 func renderHeading(w io.Writer, h *ast.Heading, ctx *mdContext) {
-	plain := inlineText(h, ctx.src)
 	switch h.Level {
 	case 1:
-		title := strings.ToUpper(plain)
-		styled := ctx.styles.Title.Bold(true).Render(title)
-		io.WriteString(w, styled)
+		var buf bytes.Buffer
+		renderHeadingInline(&buf, h, ctx, ctx.styles.Title.Bold(true), true)
+		body := buf.String()
+		io.WriteString(w, body)
 		io.WriteString(w, "\n")
-		ruleW := runewidth.StringWidth(title)
+		ruleW := ansi.StringWidth(body)
 		if ruleW < 1 {
 			ruleW = 1
 		}
 		io.WriteString(w, ctx.styles.Syntax.Render(strings.Repeat("─", ruleW)))
 	case 2:
-		io.WriteString(w, ctx.styles.Title.Bold(true).Render(plain))
+		var buf bytes.Buffer
+		renderHeadingInline(&buf, h, ctx, ctx.styles.Title.Bold(true), false)
+		body := buf.String()
+		if ctx.color {
+			// Apply underline manually so lipgloss doesn't degrade into
+			// per-rune rendering (it does that when its own .Underline(true)
+			// is set under the TrueColor profile). Re-apply after every
+			// internal reset so the underline spans the full heading.
+			body = strings.ReplaceAll(body, "\x1b[0m", "\x1b[0m\x1b[4m")
+			body = strings.ReplaceAll(body, "\x1b[24m", "\x1b[24m\x1b[4m")
+			body = "\x1b[4m" + body + "\x1b[24m"
+		}
+		io.WriteString(w, body)
 	default:
 		indent := strings.Repeat(ctx.styles.Indent, h.Level-3)
 		io.WriteString(w, indent)
-		io.WriteString(w, ctx.styles.Name.Render(plain))
+		renderHeadingInline(w, h, ctx, ctx.styles.Name, false)
+	}
+}
+
+// renderHeadingInline walks heading inline children, styling literal text
+// segments with textStyle (optionally uppercased) and rendering links as
+// clickable OSC 8 hyperlinks whose visible text inherits textStyle so the
+// link reads as part of the heading. Non-text/non-link inline nodes fall
+// through to the regular inline renderer.
+func renderHeadingInline(w io.Writer, parent ast.Node, ctx *mdContext, textStyle lipgloss.Style, upper bool) {
+	for c := parent.FirstChild(); c != nil; c = c.NextSibling() {
+		switch v := c.(type) {
+		case *ast.Text:
+			s := string(v.Segment.Value(ctx.src))
+			if upper {
+				s = strings.ToUpper(s)
+			}
+			io.WriteString(w, textStyle.Render(s))
+			if v.HardLineBreak() {
+				io.WriteString(w, "\n")
+			} else if v.SoftLineBreak() {
+				io.WriteString(w, " ")
+			}
+		case *ast.String:
+			s := string(v.Value)
+			if upper {
+				s = strings.ToUpper(s)
+			}
+			io.WriteString(w, textStyle.Render(s))
+		case *ast.Link:
+			var inner bytes.Buffer
+			if img, ok := imageOnlyLink(v); ok {
+				alt := inlineText(img, ctx.src)
+				if alt == "" {
+					alt = string(img.Destination)
+				}
+				if upper {
+					alt = strings.ToUpper(alt)
+				}
+				inner.WriteString(textStyle.Render(alt))
+			} else {
+				renderHeadingInline(&inner, v, ctx, textStyle, upper)
+			}
+			text := inner.String()
+			dest := string(v.Destination)
+			if text == "" {
+				if upper {
+					text = textStyle.Render(strings.ToUpper(dest))
+				} else {
+					text = textStyle.Render(dest)
+				}
+			}
+			if ctx.color {
+				renderHyperlink(w, dest, text)
+			} else {
+				io.WriteString(w, text)
+			}
+		case *ast.AutoLink:
+			url := string(v.URL(ctx.src))
+			text := url
+			if upper {
+				text = strings.ToUpper(text)
+			}
+			styled := textStyle.Render(text)
+			if ctx.color {
+				renderHyperlink(w, url, styled)
+			} else {
+				io.WriteString(w, styled)
+			}
+		case *ast.Image:
+			// Headings can't display images; render alt text in the heading's
+			// style and drop the source URL.
+			alt := inlineText(v, ctx.src)
+			if alt == "" {
+				alt = string(v.Destination)
+			}
+			if upper {
+				alt = strings.ToUpper(alt)
+			}
+			io.WriteString(w, textStyle.Render(alt))
+		default:
+			renderInlineNode(w, c, ctx)
+		}
 	}
 }
 
@@ -144,12 +237,25 @@ func inlineText(n ast.Node, src []byte) string {
 	return b.String()
 }
 
+// imageOnlyLink returns the embedded Image and true when l wraps a single
+// image and nothing else — the GitHub-style badge pattern
+// "[![alt](image)](href)". Such links should render as clickable text using
+// the image's alt instead of dumping the SVG URL.
+func imageOnlyLink(l *ast.Link) (*ast.Image, bool) {
+	c := l.FirstChild()
+	if c == nil || c.NextSibling() != nil {
+		return nil, false
+	}
+	img, ok := c.(*ast.Image)
+	return img, ok
+}
+
 func renderParagraph(w io.Writer, n ast.Node, ctx *mdContext) {
 	var buf bytes.Buffer
 	renderInlinesTo(&buf, n, ctx)
 	out := buf.String()
 	if ctx.width > 0 {
-		out = wordwrap.String(out, ctx.width)
+		out = ansi.Wrap(out, ctx.width, "")
 	}
 	io.WriteString(w, out)
 }
@@ -360,9 +466,21 @@ func renderInlineNode(w io.Writer, n ast.Node, ctx *mdContext) {
 		io.WriteString(w, ctx.styles.Text.Strikethrough(true).Render(text))
 	case ast.KindLink:
 		l := n.(*ast.Link)
-		linkText := plainInline(l, ctx)
+		var linkText string
+		if img, ok := imageOnlyLink(l); ok {
+			linkText = inlineText(img, ctx.src)
+		} else {
+			linkText = inlineText(l, ctx.src)
+		}
 		dest := string(l.Destination)
-		if linkText == "" || linkText == dest {
+		if linkText == "" {
+			linkText = dest
+		}
+		if ctx.color {
+			renderHyperlink(w, dest, ctx.styles.Anchor.Render(linkText))
+			return
+		}
+		if linkText == dest {
 			io.WriteString(w, ctx.styles.Anchor.Render(dest))
 			return
 		}
@@ -371,7 +489,13 @@ func renderInlineNode(w io.Writer, n ast.Node, ctx *mdContext) {
 		io.WriteString(w, ctx.styles.Comment.Render("("+dest+")"))
 	case ast.KindAutoLink:
 		al := n.(*ast.AutoLink)
-		io.WriteString(w, ctx.styles.Anchor.Render(string(al.URL(ctx.src))))
+		url := string(al.URL(ctx.src))
+		styled := ctx.styles.Anchor.Render(url)
+		if ctx.color {
+			renderHyperlink(w, url, styled)
+			return
+		}
+		io.WriteString(w, styled)
 	case ast.KindImage:
 		img := n.(*ast.Image)
 		alt := plainInline(img, ctx)
@@ -399,12 +523,22 @@ func plainInline(n ast.Node, ctx *mdContext) string {
 	return buf.String()
 }
 
+// renderHyperlink wraps styledText in an OSC 8 escape so terminals that
+// support it (iTerm2, kitty, recent gnome-terminal, etc.) make the text
+// clickable. Cmd+click opens the URL in the default browser. The text is
+// also wrapped in a dashed underline SGR so the link reads as clickable.
+func renderHyperlink(w io.Writer, url, styledText string) {
+	io.WriteString(w, "\x1b]8;;")
+	io.WriteString(w, url)
+	io.WriteString(w, "\x1b\\")
+	io.WriteString(w, "\x1b[4:5m")
+	io.WriteString(w, styledText)
+	io.WriteString(w, "\x1b[24m")
+	io.WriteString(w, "\x1b]8;;\x1b\\")
+}
+
 func renderCodeBlock(w io.Writer, src []byte, lang string, ctx *mdContext) {
 	body := strings.TrimRight(string(src), "\n")
-	indent := ctx.styles.Indent
-	if indent == "" {
-		indent = "  "
-	}
 
 	var highlighted string
 	if lex := chromalexers.Get(lang); lex != nil && ctx.color {
@@ -438,11 +572,40 @@ func renderCodeBlock(w io.Writer, src []byte, lang string, ctx *mdContext) {
 	}
 
 	lines := strings.Split(highlighted, "\n")
+	if ctx.color {
+		const fgReset = "\x1b[39m"
+		const borderFg = "\x1b[38;5;240m"
+		visWidths := make([]int, len(lines))
+		maxW := 0
+		for i, line := range lines {
+			visWidths[i] = runewidth.StringWidth(ansi.Strip(line))
+			if visWidths[i] > maxW {
+				maxW = visWidths[i]
+			}
+		}
+		bodyW := maxW + 2 // " content "
+		topBorder := borderFg + "┌" + strings.Repeat("─", bodyW) + "┐" + fgReset
+		botBorder := borderFg + "└" + strings.Repeat("─", bodyW) + "┘" + fgReset
+		side := borderFg + "│" + fgReset
+		io.WriteString(w, topBorder)
+		for i, line := range lines {
+			io.WriteString(w, "\n")
+			pad := strings.Repeat(" ", maxW-visWidths[i])
+			io.WriteString(w, side)
+			io.WriteString(w, " ")
+			io.WriteString(w, line)
+			io.WriteString(w, pad)
+			io.WriteString(w, " ")
+			io.WriteString(w, side)
+		}
+		io.WriteString(w, "\n")
+		io.WriteString(w, botBorder)
+		return
+	}
 	for i, line := range lines {
 		if i > 0 {
 			io.WriteString(w, "\n")
 		}
-		io.WriteString(w, indent)
 		io.WriteString(w, line)
 	}
 }

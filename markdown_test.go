@@ -39,17 +39,17 @@ func TestMarkdown(t *testing.T) {
 		{
 			name:   "fenced code block with language",
 			input:  "```go\nfmt.Println(\"hi\")\n```",
-			output: "  fmt.Println(\"hi\")",
+			output: "fmt.Println(\"hi\")",
 		},
 		{
 			name:   "fenced code block without language",
 			input:  "```\nplain code\n```",
-			output: "  plain code",
+			output: "plain code",
 		},
 		{
 			name:   "indented code block",
 			input:  "    indented code\n",
-			output: "  indented code",
+			output: "indented code",
 		},
 		{
 			name:   "unordered list",
@@ -129,7 +129,7 @@ func TestMarkdown(t *testing.T) {
 		{
 			name:   "mixed document",
 			input:  "# Title\n\nIntro **bold** here.\n\n## Sub\n\n- a\n- b\n\n```go\nx := 1\n```\n",
-			output: "TITLE\n─────\n\nIntro bold here.\n\nSub\n\n• a\n• b\n\n  x := 1",
+			output: "TITLE\n─────\n\nIntro bold here.\n\nSub\n\n• a\n• b\n\nx := 1",
 		},
 		{
 			name:   "ordered list paragraph wraps with continuation indent",
@@ -209,18 +209,9 @@ func TestMarkdownCodeBlockChromaColor(t *testing.T) {
 		t.Errorf("expected ANSI escapes from chroma, got: %q", out)
 	}
 	stripped := ansi.Strip(out)
-	for _, want := range []string{"package", "main", "func"} {
+	for _, want := range []string{"package", "main", "func", "┌", "│", "└"} {
 		if !strings.Contains(stripped, want) {
 			t.Errorf("stripped output missing %q\nGot:\n%s", want, stripped)
-		}
-	}
-	// Ensure indentation is present.
-	for _, line := range strings.Split(strings.Trim(stripped, "\n"), "\n") {
-		if line == "" {
-			continue
-		}
-		if !strings.HasPrefix(line, "  ") {
-			t.Errorf("code line not indented: %q", line)
 		}
 	}
 }
@@ -235,7 +226,68 @@ func TestMarkdownNoColorPath(t *testing.T) {
 	if strings.Contains(out, "\x1b[") {
 		t.Errorf("expected no ANSI escapes, got: %q", out)
 	}
-	if !strings.Contains(out, "  fmt.Println") {
-		t.Errorf("expected indented code, got: %q", out)
+	if !strings.Contains(out, "fmt.Println") {
+		t.Errorf("expected code body, got: %q", out)
+	}
+}
+
+func TestMarkdownLinkOSC8(t *testing.T) {
+	prev := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(prev)
+
+	styles := DefaultStyles.Clone()
+	var buf strings.Builder
+	Markdown(&buf, strings.NewReader("Pick a [Renderer](https://example.com/r) here."), styles)
+	out := buf.String()
+
+	// OSC 8 prelude with destination URL must be present.
+	if !strings.Contains(out, "\x1b]8;;https://example.com/r\x1b\\") {
+		t.Errorf("expected OSC 8 hyperlink open, got: %q", out)
+	}
+	if !strings.Contains(out, "\x1b]8;;\x1b\\") {
+		t.Errorf("expected OSC 8 hyperlink close, got: %q", out)
+	}
+	if !strings.Contains(out, "\x1b[4:5m") {
+		t.Errorf("expected dashed underline SGR, got: %q", out)
+	}
+	stripped := ansi.Strip(out)
+	if want := "Pick a Renderer here."; stripped != want {
+		t.Errorf("stripped output: want %q, got %q", want, stripped)
+	}
+}
+
+func TestMarkdownAutolinkOSC8(t *testing.T) {
+	prev := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(prev)
+
+	styles := DefaultStyles.Clone()
+	var buf strings.Builder
+	Markdown(&buf, strings.NewReader("see <https://example.com>"), styles)
+	out := buf.String()
+	if !strings.Contains(out, "\x1b]8;;https://example.com\x1b\\") {
+		t.Errorf("expected OSC 8 wrapper, got: %q", out)
+	}
+	if want := "see https://example.com"; ansi.Strip(out) != want {
+		t.Errorf("stripped: want %q, got %q", want, ansi.Strip(out))
+	}
+}
+
+func TestMarkdownLinkWrapAccountsForOSC8Width(t *testing.T) {
+	// The OSC 8 wrapper inserts URL bytes that must NOT count toward the
+	// visible width when wrapping a paragraph.
+	prev := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(prev)
+
+	styles := DefaultStyles.Clone()
+	styles.Width = 80
+	input := "Pass stripes.DefaultStyles for the [built-in](https://example.com/very/long/url) grayscale theme, a Clone() to customize, or &stripes.Styles{} for unstyled output."
+	var buf strings.Builder
+	Markdown(&buf, strings.NewReader(input), styles)
+	want := "Pass stripes.DefaultStyles for the built-in grayscale theme, a Clone() to\ncustomize, or &stripes.Styles{} for unstyled output."
+	if got := ansi.Strip(buf.String()); got != want {
+		t.Errorf("wrap mismatch:\nwant: %q\n got: %q", want, got)
 	}
 }
