@@ -44,7 +44,7 @@ var DefaultStyles = &Styles{
 	Boolean: lipgloss.NewStyle().Foreground(lipgloss.Color("7")),
 	Null:    lipgloss.NewStyle().Foreground(lipgloss.Color("8")),
 	Syntax:  lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Bold(true),
-	Anchor:  lipgloss.NewStyle().Foreground(lipgloss.Color("13")),
+	Anchor:  lipgloss.NewStyle().Foreground(lipgloss.Color("12")),
 	Comment: lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Faint(true),
 	Title:   lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Bold(true),
 	Columns: lipgloss.NewStyle().Bold(true),

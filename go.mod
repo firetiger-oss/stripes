@@ -3,6 +3,7 @@ module github.com/firetiger-oss/stripes
 go 1.25.5
 
 require (
+	github.com/alecthomas/chroma/v2 v2.24.1
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/charmbracelet/x/ansi v0.9.3
 	github.com/creack/pty v1.1.24
@@ -11,6 +12,7 @@ require (
 	github.com/muesli/reflow v0.3.0
 	github.com/muesli/termenv v0.16.0
 	github.com/rogpeppe/go-internal v1.14.1
+	github.com/yuin/goldmark v1.8.2
 	go.opentelemetry.io/proto/otlp v1.10.0
 	golang.org/x/net v0.53.0
 	golang.org/x/term v0.42.0
@@ -24,6 +26,7 @@ require (
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/containerd/typeurl/v2 v2.2.3 // indirect
+	github.com/dlclark/regexp2 v1.12.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

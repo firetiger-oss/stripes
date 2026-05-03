@@ -28,15 +28,17 @@ import (
 
 const usage = `Usage: stripes [flags] [file]
 
-Pretty-print structured data (JSON, YAML, XML, HTML, CSV, Dockerfile, protobuf,
-text) with ANSI colors and optional paging.
+Pretty-print structured data (JSON, YAML, XML, HTML, CSV, Dockerfile, markdown,
+protobuf, text) with ANSI colors and optional paging.
 
 Flags:
-  -f, --format string         json|yaml|xml|html|csv|dockerfile|text|protobuf|auto (default auto)
+  -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|text|protobuf|auto (default auto)
       --content-type string   Override MIME type (e.g. application/vnd.foo+json)
       --schema string         Schema URL (protobuf full name)
       --color string          always|never|auto (default auto)
-  -w, --width int             Output width (default: terminal width or 100)
+  -w, --width int             Output width in columns. 0 (default) = no
+                              wrap; let the terminal soft-wrap so the
+                              output reflows on resize.
   -p, --pager string          Pager command (e.g. "less -R", "bat --plain").
                               Use "cat" to bypass paging on a TTY.
 
@@ -101,7 +103,7 @@ func parseFlags(args []string) (*config, string, error) {
 	}
 
 	switch cfg.format {
-	case "auto", "json", "yaml", "xml", "html", "csv", "dockerfile", "text", "protobuf":
+	case "auto", "json", "yaml", "xml", "html", "csv", "dockerfile", "markdown", "text", "protobuf":
 	default:
 		return nil, "", fmt.Errorf("invalid --format %q", cfg.format)
 	}
@@ -193,6 +195,8 @@ func formatToContentType(format string) string {
 		return "text/csv"
 	case "dockerfile":
 		return "text/x-dockerfile"
+	case "markdown":
+		return "text/markdown"
 	case "text":
 		return "text/plain"
 	case "protobuf":
@@ -202,15 +206,6 @@ func formatToContentType(format string) string {
 }
 
 func resolveStyles(cfg *config) *stripes.Styles {
-	width := cfg.width
-	if width <= 0 {
-		if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 {
-			width = w
-		} else {
-			width = 100
-		}
-	}
-
 	enable := false
 	switch cfg.color {
 	case "always":
@@ -224,11 +219,11 @@ func resolveStyles(cfg *config) *stripes.Styles {
 	if enable {
 		lipgloss.SetColorProfile(termenv.TrueColor)
 		s := stripes.DefaultStyles.Clone()
-		s.Width = width
+		s.Width = cfg.width
 		return s
 	}
 	lipgloss.SetColorProfile(termenv.Ascii)
-	return &stripes.Styles{Indent: "  ", Width: width}
+	return &stripes.Styles{Indent: "  ", Width: cfg.width}
 }
 
 // openSink picks the output sink. If paging is active, it spawns the pager

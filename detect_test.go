@@ -17,6 +17,9 @@ func TestDetect(t *testing.T) {
 		{"foo.html", "x", "text/html"},
 		{"foo.htm", "x", "text/html"},
 		{"foo.csv", "x", "text/csv"},
+		{"foo.md", "x", "text/markdown"},
+		{"foo.MD", "x", "text/markdown"},
+		{"foo.markdown", "x", "text/markdown"},
 		{"foo.txt", "<html>", "text/plain"},
 
 		// Dockerfile detection
