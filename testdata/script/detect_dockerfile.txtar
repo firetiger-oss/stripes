@@ -1,0 +1,17 @@
+# Basename "Dockerfile" with no extension → detected by name.
+exec stripes --color=never -p cat Dockerfile
+cmp stdout expected.txt
+
+# Stdin with a # syntax= directive → detected by content sniff.
+stdin Dockerfile
+exec stripes --color=never -p cat
+cmp stdout expected.txt
+
+-- Dockerfile --
+# syntax=docker/dockerfile:1
+FROM alpine
+RUN echo hi
+-- expected.txt --
+# syntax=docker/dockerfile:1
+FROM alpine
+RUN echo hi

@@ -28,11 +28,11 @@ import (
 
 const usage = `Usage: stripes [flags] [file]
 
-Pretty-print structured data (JSON, YAML, XML, HTML, CSV, protobuf, text)
-with ANSI colors and optional paging.
+Pretty-print structured data (JSON, YAML, XML, HTML, CSV, Dockerfile, protobuf,
+text) with ANSI colors and optional paging.
 
 Flags:
-  -f, --format string         json|yaml|xml|html|csv|text|protobuf|auto (default auto)
+  -f, --format string         json|yaml|xml|html|csv|dockerfile|text|protobuf|auto (default auto)
       --content-type string   Override MIME type (e.g. application/vnd.foo+json)
       --schema string         Schema URL (protobuf full name)
       --color string          always|never|auto (default auto)
@@ -101,7 +101,7 @@ func parseFlags(args []string) (*config, string, error) {
 	}
 
 	switch cfg.format {
-	case "auto", "json", "yaml", "xml", "html", "csv", "text", "protobuf":
+	case "auto", "json", "yaml", "xml", "html", "csv", "dockerfile", "text", "protobuf":
 	default:
 		return nil, "", fmt.Errorf("invalid --format %q", cfg.format)
 	}
@@ -191,6 +191,8 @@ func formatToContentType(format string) string {
 		return "text/html"
 	case "csv":
 		return "text/csv"
+	case "dockerfile":
+		return "text/x-dockerfile"
 	case "text":
 		return "text/plain"
 	case "protobuf":

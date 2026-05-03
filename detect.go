@@ -46,6 +46,10 @@ func Detect(name string, peek []byte) string {
 }
 
 func detectByExtension(name string) string {
+	switch filepath.Base(name) {
+	case "Dockerfile", "Containerfile":
+		return "text/x-dockerfile"
+	}
 	switch strings.ToLower(filepath.Ext(name)) {
 	case ".json":
 		return "application/json"
@@ -57,6 +61,8 @@ func detectByExtension(name string) string {
 		return "text/html"
 	case ".csv":
 		return "text/csv"
+	case ".dockerfile":
+		return "text/x-dockerfile"
 	case ".txt":
 		return "text/plain"
 	}
@@ -88,6 +94,9 @@ func detectByContent(peek []byte) string {
 		}
 	}
 
+	if looksLikeDockerfile(trimmed) {
+		return "text/x-dockerfile"
+	}
 	if looksLikeYAML(trimmed) {
 		return "application/yaml"
 	}
@@ -138,4 +147,53 @@ func isASCIIIdentStart(c byte) bool {
 
 func isASCIIIdent(c byte) bool {
 	return isASCIIIdentStart(c) || (c >= '0' && c <= '9') || c == '-' || c == '.'
+}
+
+// looksLikeDockerfile inspects the first few non-blank lines of peek
+// for Dockerfile-shaped content: a `# syntax=` / `# escape=` parser
+// directive, or a leading FROM/ARG instruction.
+func looksLikeDockerfile(b []byte) bool {
+	const maxScan = 4
+	for i, line := 0, []byte(nil); i < maxScan; i++ {
+		nl := bytes.IndexByte(b, '\n')
+		if nl < 0 {
+			line, b = b, nil
+		} else {
+			line, b = b[:nl], b[nl+1:]
+		}
+		line = bytes.TrimRight(line, " \t\r")
+		if len(line) == 0 {
+			if b == nil {
+				break
+			}
+			continue
+		}
+		if line[0] == '#' {
+			rest := bytes.TrimLeft(line[1:], " \t")
+			lower := bytes.ToLower(rest)
+			if bytes.HasPrefix(lower, []byte("syntax=")) ||
+				bytes.HasPrefix(lower, []byte("escape=")) ||
+				bytes.HasPrefix(lower, []byte("check=")) {
+				return true
+			}
+			if b == nil {
+				break
+			}
+			continue
+		}
+		fields := bytes.Fields(line)
+		if len(fields) == 0 {
+			if b == nil {
+				break
+			}
+			continue
+		}
+		head := bytes.ToUpper(fields[0])
+		switch string(head) {
+		case "FROM", "ARG":
+			return true
+		}
+		return false
+	}
+	return false
 }

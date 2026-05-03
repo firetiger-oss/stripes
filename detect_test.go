@@ -19,6 +19,12 @@ func TestDetect(t *testing.T) {
 		{"foo.csv", "x", "text/csv"},
 		{"foo.txt", "<html>", "text/plain"},
 
+		// Dockerfile detection
+		{"Dockerfile", "x", "text/x-dockerfile"},
+		{"Containerfile", "x", "text/x-dockerfile"},
+		{"foo.dockerfile", "x", "text/x-dockerfile"},
+		{"path/to/Dockerfile", "x", "text/x-dockerfile"},
+
 		// sniffing — JSON
 		{"", `{"a":1}`, "application/json"},
 		{"", "  \n  [1,2,3]", "application/json"},
@@ -36,6 +42,13 @@ func TestDetect(t *testing.T) {
 		{"", "---\nfoo: bar\n", "application/yaml"},
 		{"", "foo: bar\nbaz: 1\n", "application/yaml"},
 		{"", "# comment\nfoo: bar\n", "application/yaml"},
+
+		// sniffing — Dockerfile
+		{"", "FROM alpine\n", "text/x-dockerfile"},
+		{"", "from alpine:3\nRUN ls\n", "text/x-dockerfile"},
+		{"", "ARG VERSION=3\nFROM alpine:${VERSION}\n", "text/x-dockerfile"},
+		{"", "# syntax=docker/dockerfile:1\nFROM alpine\n", "text/x-dockerfile"},
+		{"", "# escape=`\nFROM alpine\n", "text/x-dockerfile"},
 
 		// fallback
 		{"", "just plain text\n", "text/plain"},
