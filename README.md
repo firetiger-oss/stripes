@@ -1,117 +1,114 @@
-# stripes [![Go Reference](https://pkg.go.dev/badge/github.com/firetiger-oss/stripes.svg)](https://pkg.go.dev/github.com/firetiger-oss/stripes)
+# stripes [![CI](https://github.com/firetiger-oss/stripes/actions/workflows/ci.yml/badge.svg)](https://github.com/firetiger-oss/stripes/actions/workflows/ci.yml) [![Go Reference](https://pkg.go.dev/badge/github.com/firetiger-oss/stripes.svg)](https://pkg.go.dev/github.com/firetiger-oss/stripes)
 
-A streaming, ANSI-colored pretty-printer for structured data — JSON, YAML,
-XML, HTML, CSV, protobuf, and plain text — usable as a Go library or as a
-standalone CLI.
+Streaming pretty-printer for structured data formats — JSON, YAML, XML, HTML, CSV, protobuf, plain text — usable as a Go library or as a standalone CLI.
 
-## Install
+## Motivation
 
-```sh
-# CLI
-go install github.com/firetiger-oss/stripes/cmd/stripes@latest
+Pretty-printers in the Unix toolchain are fragmented: `jq` for JSON, `yq` for
+YAML, browsers for HTML, no canonical option for protobuf. They share neither
+flags nor styling, which makes uniform terminal output hard to assemble inside
+a single Go program emitting mixed structured payloads (logs, traces, debug
+dumps, RPC responses).
 
-# Library
-go get github.com/firetiger-oss/stripes
+`stripes` collapses that surface to a single library and CLI:
+
+- Renderers stream — bytes are emitted as they arrive, no whole-input load. Works for `tail -f`, large objects, and HTTP response bodies.
+- Format dispatch is by MIME type, so any program already carrying a content type can pick a renderer without parsing its own input.
+- The same library powers the CLI; no separate process required when a Go program wants colored output.
+- One binary, one set of flags, one styling model across all supported formats.
+
+## Library
+
+### [stripes.ObjectFunc](https://pkg.go.dev/github.com/firetiger-oss/stripes#ObjectFunc)
+
+Pick a renderer by MIME type. Returns `nil` if the content type is unsupported.
+
+```go
+import "github.com/firetiger-oss/stripes"
+
+renderer := stripes.ObjectFunc("application/json", "")
+renderer(os.Stdout, body, stripes.DefaultStyles)
 ```
 
+For `application/protobuf`, pass the message's full name as the second
+argument so the dynamic descriptor lookup can resolve fields.
+
+### [stripes.Detect](https://pkg.go.dev/github.com/firetiger-oss/stripes#Detect)
+
+Resolve a content type from a filename and/or the leading bytes of a stream.
+
+```go
+buf, _ := bufio.NewReader(input).Peek(512)
+ct := stripes.Detect("payload.yaml", buf)
+renderer := stripes.ObjectFunc(ct, "")
+```
+
+### Format functions
+
+| Content type             | Function                                                                                                  |
+|--------------------------|-----------------------------------------------------------------------------------------------------------|
+| `application/json`       | [`JSON`](https://pkg.go.dev/github.com/firetiger-oss/stripes#JSON)                                        |
+| `application/yaml`       | [`YAML`](https://pkg.go.dev/github.com/firetiger-oss/stripes#YAML)                                        |
+| `application/xml`        | [`XML`](https://pkg.go.dev/github.com/firetiger-oss/stripes#XML)                                          |
+| `text/html`              | [`HTML`](https://pkg.go.dev/github.com/firetiger-oss/stripes#HTML)                                        |
+| `text/csv`               | [`CSV`](https://pkg.go.dev/github.com/firetiger-oss/stripes#CSV)                                          |
+| `text/plain`             | [`Text`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Text)                                        |
+| `application/protobuf`   | [`Protobuf`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Protobuf)                                |
+| (passthrough)            | [`Plain`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Plain)                                      |
+
+All share the [`Func`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Func)
+signature: `func(io.Writer, io.Reader, *Styles)`.
+
+### [stripes.Styles](https://pkg.go.dev/github.com/firetiger-oss/stripes#Styles)
+
+Pass [`stripes.DefaultStyles`](https://pkg.go.dev/github.com/firetiger-oss/stripes#DefaultStyles)
+for the built-in grayscale theme, a `Clone()` to customize, or `&stripes.Styles{}`
+for unstyled output.
+
 ## CLI
+
+```
+go install github.com/firetiger-oss/stripes/cmd/stripes@latest
+```
 
 ```
 stripes [flags] [file]
 ```
 
-If no file is given, `stripes` reads from stdin. When stdout is a terminal it
-pipes the styled output through a pager (`less -R` by default); otherwise it
-writes directly. Format is auto-detected from filename extension or content
-sniffing.
+Reads `file` if given, otherwise stdin. When stdout is a terminal the styled
+output is piped through a pager; otherwise it is written directly.
 
 ### Flags
 
-| Flag | Description |
-|---|---|
-| `-f`, `--format` | `json`, `yaml`, `xml`, `html`, `csv`, `text`, `protobuf`, `auto` |
-| `--content-type` | Override MIME type (e.g. `application/vnd.foo+json`) |
-| `--schema` | Schema URL (protobuf full message name) |
-| `--color` | `always`, `never`, `auto` (default `auto`) |
-| `-w`, `--width` | Output width (default: terminal width or 100) |
-| `-p`, `--pager` | Pager command override. Use `cat` to bypass paging on a TTY. |
+| Flag             | Default          | Description                                                                 |
+|------------------|------------------|-----------------------------------------------------------------------------|
+| `-f`, `--format` | `auto`           | `json`, `yaml`, `xml`, `html`, `csv`, `text`, `protobuf`                    |
+| `--content-type` |                  | Override MIME (e.g. `application/vnd.foo+json`)                             |
+| `--schema`       |                  | Schema URL (protobuf full message name)                                     |
+| `--color`        | `auto`           | `always`, `never`, `auto` (auto disables on non-TTY or when `NO_COLOR` set) |
+| `-w`, `--width`  | terminal width   | Output width, falls back to 100 when stdout is not a terminal               |
+| `-p`, `--pager`  |                  | Pager command override; use `cat` to bypass paging on a TTY                 |
 
-### Pager resolution
+Pager resolution: `-p` flag → `$STRIPES_PAGER` → `$PAGER` → built-in default
+`less -R`. The pager string is split on whitespace; no shell quoting is
+supported. Wrap a script and point `-p` at it if you need spaces in arguments.
 
-`--pager` flag → `$STRIPES_PAGER` → `$PAGER` → built-in default `less -R`.
-
-The pager string is split on whitespace; no shell quoting is supported. To
-pass arguments containing spaces, wrap your own script and point `-p` at it.
-
-### Color
-
-Auto-disabled when `NO_COLOR` is set or stdout is not a terminal.
-
-### Shell snippets
+### Shell aliases
 
 ```sh
-# Quick aliases — don't clobber core tools
-alias scat='stripes'              # cat-like, with paging on TTY
+alias scat='stripes'              # cat-like, with paging on a TTY
 alias spcat='stripes -p cat'      # always-stream, never page
-
-# Override pager
-stripes -p 'less -R --tabs=2' foo.json
-
-# Pipe-friendly (paging auto-disables when stdout isn't a TTY)
-curl https://api.example.com/foo | stripes --color=always | head -20
 ```
 
-## Library
+## Contributing
 
-All renderers share a common shape:
+Contributions are welcome! To get started:
 
-```go
-import "github.com/firetiger-oss/stripes"
+1. Ensure you have Go 1.25+ installed
+2. Run `go test ./...` to verify tests pass
 
-stripes.JSON(os.Stdout, r, stripes.DefaultStyles)
-```
-
-| Function | Input |
-|---|---|
-| `stripes.JSON(w, r, s)` | JSON bytes |
-| `stripes.YAML(w, r, s)` | YAML bytes |
-| `stripes.XML(w, r, s)` | XML bytes |
-| `stripes.HTML(w, r, s)` | HTML bytes |
-| `stripes.CSV(w, r, s)` | CSV bytes |
-| `stripes.Text(w, r, s)` | Plain text |
-| `stripes.Plain(w, r, s)` | Pass-through |
-| `stripes.Protobuf(desc, types)(w, r, s)` | Protobuf wire format |
-
-### Dispatch by MIME type
-
-```go
-fn := stripes.ObjectFunc("application/json", "")
-fn(os.Stdout, r, stripes.DefaultStyles)
-```
-
-`ObjectFunc` returns `nil` if the MIME type is unsupported.
-
-### Format detection
-
-```go
-ct := stripes.Detect("foo.yaml", peek)   // returns "application/yaml"
-fn := stripes.ObjectFunc(ct, "")
-```
-
-`Detect` uses filename extension first, then sniffs leading bytes, then falls
-back to `net/http.DetectContentType`. Returns `"text/plain"` if nothing else
-matched.
-
-### Custom styles
-
-```go
-styles := stripes.DefaultStyles.Clone()
-styles.Width = 120
-styles.String = lipgloss.NewStyle().Foreground(lipgloss.Color("99")).Bold(true)
-```
-
-Pass a zero-value `*stripes.Styles{}` for unstyled output.
+Please report bugs and feature requests via [GitHub Issues](https://github.com/firetiger-oss/stripes/issues).
 
 ## License
 
-MIT
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
