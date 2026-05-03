@@ -72,26 +72,24 @@ go install github.com/firetiger-oss/stripes/cmd/stripes@latest
 ```
 
 ```
-stripes [flags] [file]
+$ stripes --help
+Usage: stripes [flags] [file]
+
+Pretty-print structured data (JSON, YAML, XML, HTML, CSV, protobuf, text)
+with ANSI colors and optional paging.
+
+Flags:
+  -f, --format string         json|yaml|xml|html|csv|text|protobuf|auto (default auto)
+      --content-type string   Override MIME type (e.g. application/vnd.foo+json)
+      --schema string         Schema URL (protobuf full name)
+      --color string          always|never|auto (default auto)
+  -w, --width int             Output width (default: terminal width or 100)
+  -p, --pager string          Pager command (e.g. "less -R", "bat --plain").
+                              Use "cat" to bypass paging on a TTY.
+
+Pager resolution: -p flag > $STRIPES_PAGER > $PAGER > "less -R"
+Color is auto-disabled when NO_COLOR is set or stdout is not a terminal.
 ```
-
-Reads `file` if given, otherwise stdin. When stdout is a terminal the styled
-output is piped through a pager; otherwise it is written directly.
-
-### Flags
-
-| Flag             | Default          | Description                                                                 |
-|------------------|------------------|-----------------------------------------------------------------------------|
-| `-f`, `--format` | `auto`           | `json`, `yaml`, `xml`, `html`, `csv`, `text`, `protobuf`                    |
-| `--content-type` |                  | Override MIME (e.g. `application/vnd.foo+json`)                             |
-| `--schema`       |                  | Schema URL (protobuf full message name)                                     |
-| `--color`        | `auto`           | `always`, `never`, `auto` (auto disables on non-TTY or when `NO_COLOR` set) |
-| `-w`, `--width`  | terminal width   | Output width, falls back to 100 when stdout is not a terminal               |
-| `-p`, `--pager`  |                  | Pager command override; use `cat` to bypass paging on a TTY                 |
-
-Pager resolution: `-p` flag → `$STRIPES_PAGER` → `$PAGER` → built-in default
-`less -R`. The pager string is split on whitespace; no shell quoting is
-supported. Wrap a script and point `-p` at it if you need spaces in arguments.
 
 ### Shell aliases
 
