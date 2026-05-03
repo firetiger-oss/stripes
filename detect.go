@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+
+	chromalexers "github.com/alecthomas/chroma/v2/lexers"
 )
 
 // Detect resolves a content type for a stream.
@@ -67,6 +69,9 @@ func detectByExtension(name string) string {
 		return "text/markdown"
 	case ".txt":
 		return "text/plain"
+	}
+	if lex := chromalexers.Match(filepath.Base(name)); lex != nil {
+		return "text/x-source-code; lang=" + lex.Config().Name
 	}
 	return ""
 }

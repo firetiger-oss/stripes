@@ -4,7 +4,7 @@
   <img width="300" height="255" alt="stripes" src="stripes.png" />
 </p>
 
-Streaming pretty-printer for structured data formats — JSON, YAML, XML, HTML, CSV, Dockerfile, protobuf, plain text — usable as a Go library or as a standalone CLI.
+Streaming pretty-printer for structured data formats — JSON, YAML, XML, HTML, CSV, Dockerfile, markdown, protobuf, plain text, source code (via [chroma](https://github.com/alecthomas/chroma)) — usable as a Go library or as a standalone CLI.
 
 ## Motivation
 
@@ -58,6 +58,8 @@ renderer := stripes.Func(ct, "")
 | `text/html`              | [`HTML`](https://pkg.go.dev/github.com/firetiger-oss/stripes#HTML)                                        |
 | `text/csv`               | [`CSV`](https://pkg.go.dev/github.com/firetiger-oss/stripes#CSV)                                          |
 | `text/x-dockerfile`      | [`Dockerfile`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Dockerfile)                            |
+| `text/markdown`          | [`Markdown`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Markdown)                                |
+| `text/x-source-code`     | [`Code`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Code) (factory; pass chroma lexer name)      |
 | `text/plain`             | [`Text`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Text)                                        |
 | `application/protobuf`   | [`Protobuf`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Protobuf)                                |
 | (passthrough)            | [`Plain`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Plain)                                      |
@@ -81,11 +83,11 @@ go install github.com/firetiger-oss/stripes/cmd/stripes@latest
 $ stripes --help
 Usage: stripes [flags] [file]
 
-Pretty-print structured data (JSON, YAML, XML, HTML, CSV, Dockerfile, protobuf,
-text) with ANSI colors and optional paging.
+Pretty-print structured data (JSON, YAML, XML, HTML, CSV, Dockerfile, markdown,
+protobuf, text, source code) with ANSI colors and optional paging.
 
 Flags:
-  -f, --format string         json|yaml|xml|html|csv|dockerfile|text|protobuf|auto (default auto)
+  -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|text|code|protobuf|auto (default auto)
       --content-type string   Override MIME type (e.g. application/vnd.foo+json)
       --schema string         Schema URL (protobuf full name)
       --color string          always|never|auto (default auto)

@@ -15,7 +15,7 @@ import (
 // descriptor in [protoregistry.GlobalTypes] / [protoregistry.GlobalFiles];
 // for other formats it is ignored.
 func Func(contentType, schemaURL string) Renderer {
-	mediaType, _, _ := mime.ParseMediaType(contentType)
+	mediaType, params, _ := mime.ParseMediaType(contentType)
 
 	if strings.HasPrefix(mediaType, "application/") {
 		if i := strings.LastIndexByte(mediaType, '+'); i >= 0 {
@@ -59,6 +59,8 @@ func Func(contentType, schemaURL string) Renderer {
 		return Dockerfile
 	case "text/markdown":
 		return Markdown
+	case "text/x-source-code":
+		return Code(params["lang"])
 	default:
 		if strings.HasPrefix(mediaType, "text/") {
 			return Text

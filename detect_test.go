@@ -60,6 +60,11 @@ func TestDetect(t *testing.T) {
 
 		// http.DetectContentType bridge
 		{"", "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>", "application/xml"},
+
+		// chroma-driven extension fallback for source code
+		{"foo.go", "x", "text/x-source-code; lang=Go"},
+		{"foo.py", "x", "text/x-source-code; lang=Python"},
+		{"foo.rs", "x", "text/x-source-code; lang=Rust"},
 	}
 
 	for _, tt := range tests {

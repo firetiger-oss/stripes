@@ -1,0 +1,26 @@
+# Source files are highlighted via chroma when their extension matches a
+# chroma lexer.
+
+# --color=always: ANSI escapes appear in the highlighted output.
+exec stripes --color=always -p cat input.go
+stdout '\x1b\['
+
+# --color=never: output is byte-identical to the source file.
+exec stripes --color=never -p cat input.go
+cmp stdout input.go
+
+# Auto-detection picks the source-code MIME with the lexer name.
+exec stripes --color=never --format=code -p cat input.py
+stdout 'def hello'
+
+-- input.go --
+package main
+
+import "fmt"
+
+func main() {
+	fmt.Println("hello")
+}
+-- input.py --
+def hello():
+    print("hello")
