@@ -572,40 +572,11 @@ func renderCodeBlock(w io.Writer, src []byte, lang string, ctx *mdContext) {
 	}
 
 	lines := strings.Split(highlighted, "\n")
-	if ctx.color {
-		const fgReset = "\x1b[39m"
-		const borderFg = "\x1b[38;5;240m"
-		visWidths := make([]int, len(lines))
-		maxW := 0
-		for i, line := range lines {
-			visWidths[i] = runewidth.StringWidth(ansi.Strip(line))
-			if visWidths[i] > maxW {
-				maxW = visWidths[i]
-			}
-		}
-		bodyW := maxW + 2 // " content "
-		topBorder := borderFg + "┌" + strings.Repeat("─", bodyW) + "┐" + fgReset
-		botBorder := borderFg + "└" + strings.Repeat("─", bodyW) + "┘" + fgReset
-		side := borderFg + "│" + fgReset
-		io.WriteString(w, topBorder)
-		for i, line := range lines {
-			io.WriteString(w, "\n")
-			pad := strings.Repeat(" ", maxW-visWidths[i])
-			io.WriteString(w, side)
-			io.WriteString(w, " ")
-			io.WriteString(w, line)
-			io.WriteString(w, pad)
-			io.WriteString(w, " ")
-			io.WriteString(w, side)
-		}
-		io.WriteString(w, "\n")
-		io.WriteString(w, botBorder)
-		return
-	}
 	for i, line := range lines {
 		if i > 0 {
 			io.WriteString(w, "\n")
 		}
+		io.WriteString(w, "  ")
 		io.WriteString(w, line)
 	}
 }

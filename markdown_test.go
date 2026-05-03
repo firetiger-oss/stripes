@@ -39,17 +39,17 @@ func TestMarkdown(t *testing.T) {
 		{
 			name:   "fenced code block with language",
 			input:  "```go\nfmt.Println(\"hi\")\n```",
-			output: "fmt.Println(\"hi\")",
+			output: "  fmt.Println(\"hi\")",
 		},
 		{
 			name:   "fenced code block without language",
 			input:  "```\nplain code\n```",
-			output: "plain code",
+			output: "  plain code",
 		},
 		{
 			name:   "indented code block",
 			input:  "    indented code\n",
-			output: "indented code",
+			output: "  indented code",
 		},
 		{
 			name:   "unordered list",
@@ -129,7 +129,7 @@ func TestMarkdown(t *testing.T) {
 		{
 			name:   "mixed document",
 			input:  "# Title\n\nIntro **bold** here.\n\n## Sub\n\n- a\n- b\n\n```go\nx := 1\n```\n",
-			output: "TITLE\n─────\n\nIntro bold here.\n\nSub\n\n• a\n• b\n\nx := 1",
+			output: "TITLE\n─────\n\nIntro bold here.\n\nSub\n\n• a\n• b\n\n  x := 1",
 		},
 		{
 			name:   "ordered list paragraph wraps with continuation indent",
@@ -209,9 +209,18 @@ func TestMarkdownCodeBlockChromaColor(t *testing.T) {
 		t.Errorf("expected ANSI escapes from chroma, got: %q", out)
 	}
 	stripped := ansi.Strip(out)
-	for _, want := range []string{"package", "main", "func", "┌", "│", "└"} {
+	for _, want := range []string{"package", "main", "func"} {
 		if !strings.Contains(stripped, want) {
 			t.Errorf("stripped output missing %q\nGot:\n%s", want, stripped)
+		}
+	}
+	// Each non-empty code line should start with the 2-space indent.
+	for _, line := range strings.Split(strings.Trim(stripped, "\n"), "\n") {
+		if line == "" {
+			continue
+		}
+		if !strings.HasPrefix(line, "  ") {
+			t.Errorf("code line not indented: %q", line)
 		}
 	}
 }
@@ -226,8 +235,8 @@ func TestMarkdownNoColorPath(t *testing.T) {
 	if strings.Contains(out, "\x1b[") {
 		t.Errorf("expected no ANSI escapes, got: %q", out)
 	}
-	if !strings.Contains(out, "fmt.Println") {
-		t.Errorf("expected code body, got: %q", out)
+	if !strings.Contains(out, "  fmt.Println") {
+		t.Errorf("expected indented code, got: %q", out)
 	}
 }
 
