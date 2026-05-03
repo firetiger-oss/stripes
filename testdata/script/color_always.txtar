@@ -1,0 +1,6 @@
+# --color=always forces ANSI even when stdout is a pipe.
+exec stripes --color=always -p cat input.json
+stdout '\x1b\['
+
+-- input.json --
+{"a":1}

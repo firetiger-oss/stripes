@@ -1,0 +1,13 @@
+# JSON pretty-printed via stdin, no color.
+stdin input.json
+exec stripes --color=never -p cat
+cmp stdout expected.txt
+
+-- input.json --
+{"name":"alice","age":30,"tags":["admin","ops"]}
+-- expected.txt --
+{  
+  "name": "alice",
+  "age": 30,
+  "tags": ["admin", "ops"]
+}

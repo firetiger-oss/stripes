@@ -1,0 +1,13 @@
+# With STRIPES_FORCE_PAGER=1 (test-only override) and STRIPES_PAGER=stub-pager,
+# the default pager is the stub. Verify it was invoked, captured stdin bytes.
+env STRIPES_FORCE_PAGER=1
+env STRIPES_PAGER=stub-pager
+env STUB_PAGER_LOG=$WORK/.pager.log
+
+exec stripes --color=never input.json
+exists $WORK/.pager.log
+grep -count=1 '^argv: .*stub-pager$' $WORK/.pager.log
+grep -count=1 '^stdin-bytes: \d+$' $WORK/.pager.log
+
+-- input.json --
+{"hello":"world"}

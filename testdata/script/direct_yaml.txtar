@@ -1,0 +1,16 @@
+# YAML pretty-printed from a file argument.
+exec stripes --color=never -p cat input.yaml
+cmp stdout expected.txt
+
+-- input.yaml --
+name: alice
+age: 30
+tags:
+  - admin
+  - ops
+-- expected.txt --
+name: alice
+age: 30
+tags: 
+  - admin
+  - ops

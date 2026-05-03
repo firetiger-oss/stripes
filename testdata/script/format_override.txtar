@@ -1,0 +1,8 @@
+# --format json overrides extension; YAML file rendered (garbled) as JSON.
+# Should not crash; exit 0.
+exec stripes --color=never -p cat --format json input.yaml
+! stderr 'panic'
+
+-- input.yaml --
+name: alice
+age: 30

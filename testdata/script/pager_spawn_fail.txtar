@@ -1,0 +1,13 @@
+# Pager binary doesn't exist; falls back to stdout, warning on stderr, exit 0.
+env STRIPES_FORCE_PAGER=1
+
+exec stripes --color=never -p /nonexistent/pager-binary input.json
+stderr 'pager .* failed to start'
+cmp stdout expected.txt
+
+-- input.json --
+{"hello":"world"}
+-- expected.txt --
+{  
+  "hello": "world"
+}

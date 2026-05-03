@@ -1,0 +1,11 @@
+# Filename extension drives format selection. Content is ambiguous (could
+# be either text or YAML), but .yaml extension wins.
+exec stripes --color=never -p cat input.yaml
+cmp stdout expected.txt
+
+-- input.yaml --
+greeting: hello
+count: 42
+-- expected.txt --
+greeting: hello
+count: 42

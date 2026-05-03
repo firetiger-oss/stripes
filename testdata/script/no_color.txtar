@@ -1,0 +1,8 @@
+# NO_COLOR=1 suppresses ANSI even when --color is unset (auto).
+env NO_COLOR=1
+
+exec stripes -p cat input.json
+! stdout '\x1b\['
+
+-- input.json --
+{"a":1,"b":2}

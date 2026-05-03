@@ -1,0 +1,11 @@
+# Stdin without filename → format sniffed from content. JSON detected.
+stdin input.json
+exec stripes --color=never -p cat
+cmp stdout expected.txt
+
+-- input.json --
+{"detected":true}
+-- expected.txt --
+{  
+  "detected": true
+}
