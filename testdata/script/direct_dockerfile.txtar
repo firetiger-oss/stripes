@@ -1,0 +1,14 @@
+# Dockerfile pretty-printed via explicit --format flag.
+exec stripes --color=never -p cat --format=dockerfile input.dockerfile
+cmp stdout expected.txt
+
+-- input.dockerfile --
+FROM alpine:3.20 AS base
+RUN apk add --no-cache curl
+EXPOSE 8080
+CMD ["sh"]
+-- expected.txt --
+FROM alpine:3.20 AS base
+RUN apk add --no-cache curl
+EXPOSE 8080
+CMD ["sh"]

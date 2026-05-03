@@ -55,6 +55,13 @@ func TestFunc(t *testing.T) {
 			expectType:  "Text",
 		},
 		{
+			name:        "Dockerfile content type",
+			contentType: "text/x-dockerfile",
+			schemaURL:   "",
+			expectNil:   false,
+			expectType:  "Dockerfile",
+		},
+		{
 			name:        "Generic text content type",
 			contentType: "text/markdown",
 			schemaURL:   "",

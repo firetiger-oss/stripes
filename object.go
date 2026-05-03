@@ -55,6 +55,8 @@ func Func(contentType, schemaURL string) Renderer {
 		return HTML
 	case "text/csv":
 		return CSV
+	case "text/x-dockerfile":
+		return Dockerfile
 	default:
 		if strings.HasPrefix(mediaType, "text/") {
 			return Text
