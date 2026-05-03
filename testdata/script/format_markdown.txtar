@@ -1,0 +1,13 @@
+# --format markdown overrides extension. Plain .txt rendered as markdown.
+exec stripes --color=never -p cat --format markdown input.txt
+cmp stdout expected.txt
+
+-- input.txt --
+# Title
+
+Body text.
+-- expected.txt --
+TITLE
+─────
+
+Body text.

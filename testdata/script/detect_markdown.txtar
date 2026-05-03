@@ -1,0 +1,19 @@
+# .md extension auto-detected; markdown rendered with syntax stripped.
+exec stripes --color=never -p cat input.md
+cmp stdout expected.txt
+
+-- input.md --
+# Hello
+
+A *paragraph* with **bold** and `code`.
+
+- one
+- two
+-- expected.txt --
+HELLO
+─────
+
+A paragraph with bold and code.
+
+• one
+• two

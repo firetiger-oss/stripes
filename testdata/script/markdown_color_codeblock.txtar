@@ -1,0 +1,12 @@
+# --color=always activates chroma syntax highlighting on fenced code blocks.
+exec stripes --color=always -p cat input.md
+stdout '\x1b\['
+
+-- input.md --
+```go
+package main
+
+func main() {
+	println("hi")
+}
+```

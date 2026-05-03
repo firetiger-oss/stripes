@@ -63,6 +63,8 @@ func detectByExtension(name string) string {
 		return "text/csv"
 	case ".dockerfile":
 		return "text/x-dockerfile"
+	case ".md", ".markdown":
+		return "text/markdown"
 	case ".txt":
 		return "text/plain"
 	}
