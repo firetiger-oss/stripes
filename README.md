@@ -1,5 +1,9 @@
 # stripes [![CI](https://github.com/firetiger-oss/stripes/actions/workflows/ci.yml/badge.svg)](https://github.com/firetiger-oss/stripes/actions/workflows/ci.yml) [![Go Reference](https://pkg.go.dev/badge/github.com/firetiger-oss/stripes.svg)](https://pkg.go.dev/github.com/firetiger-oss/stripes)
 
+<p align="center">
+  <img width="300" height="255" alt="stripes" src="stripes.png" />
+</p>
+
 Streaming pretty-printer for structured data formats — JSON, YAML, XML, HTML, CSV, protobuf, plain text — usable as a Go library or as a standalone CLI.
 
 ## Motivation
