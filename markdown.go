@@ -475,23 +475,6 @@ func renderTable(w io.Writer, n ast.Node, ctx *mdContext) {
 	io.WriteString(w, t.Render())
 }
 
-// tableNaturalWidth returns the width the table would occupy if rendered with
-// no width constraint. It mirrors lipgloss's own model: per-column max of
-// ANSI-visible cell width, plus 2 chars of horizontal padding per column
-// (Padding(0, 1)) and one vertical border between/around columns.
-func tableNaturalWidth(headers []string, rows [][]string) int {
-	cols := tableColumnCount(headers, rows)
-	if cols == 0 {
-		return 0
-	}
-	colW := columnNaturalWidths(headers, rows, cols)
-	total := cols + 1
-	for _, w := range colW {
-		total += w + 2
-	}
-	return total
-}
-
 // balancedColumnWidths allocates a per-column width (including Padding(0, 1))
 // that sums to `totalWidth - (cols+1)` vertical-border chars. Returns nil
 // when the table fits naturally — leave column widths unconstrained so
