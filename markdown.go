@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
+	"sort"
 	"strings"
 
 	"github.com/alecthomas/chroma/v2"
@@ -27,11 +29,55 @@ func Markdown(w io.Writer, r io.Reader, styles *Styles) {
 		fmt.Fprintf(w, "ERROR: %s\n", err)
 		return
 	}
+	src = stripFrontmatter(src)
 	md := goldmark.New(goldmark.WithExtensions(extension.GFM))
 	root := md.Parser().Parse(text.NewReader(src))
 
 	ctx := &mdContext{src: src, styles: styles, width: styles.Width, color: stylesEmitANSI(styles)}
 	renderMarkdownBlocks(w, root, ctx)
+}
+
+// stripFrontmatter returns src with a leading YAML frontmatter block
+// (--- ... ---) removed, including any blank lines between the closing
+// fence and the next content. If no well-formed frontmatter is present,
+// src is returned unchanged.
+func stripFrontmatter(src []byte) []byte {
+	var skip int
+	switch {
+	case bytes.HasPrefix(src, []byte("---\n")):
+		skip = 4
+	case bytes.HasPrefix(src, []byte("---\r\n")):
+		skip = 5
+	default:
+		return src
+	}
+	rest := src[skip:]
+	for {
+		nl := bytes.IndexByte(rest, '\n')
+		if nl < 0 {
+			return src
+		}
+		line := rest[:nl]
+		if n := len(line); n > 0 && line[n-1] == '\r' {
+			line = line[:n-1]
+		}
+		if bytes.Equal(line, []byte("---")) {
+			after := rest[nl+1:]
+			for len(after) > 0 {
+				if after[0] == '\n' {
+					after = after[1:]
+					continue
+				}
+				if len(after) >= 2 && after[0] == '\r' && after[1] == '\n' {
+					after = after[2:]
+					continue
+				}
+				break
+			}
+			return after
+		}
+		rest = rest[nl+1:]
+	}
 }
 
 type mdContext struct {
@@ -98,10 +144,18 @@ func renderMarkdownBlock(w io.Writer, n ast.Node, ctx *mdContext) {
 }
 
 func renderHeading(w io.Writer, h *ast.Heading, ctx *mdContext) {
+	level := h.Level
+	if level < 1 {
+		level = 1
+	}
+	if level > 6 {
+		level = 6
+	}
+	style := ctx.styles.Heading[level-1]
 	switch h.Level {
 	case 1:
 		var buf bytes.Buffer
-		renderHeadingInline(&buf, h, ctx, ctx.styles.Title.Bold(true), true)
+		renderHeadingInline(&buf, h, ctx, style, true)
 		body := buf.String()
 		io.WriteString(w, body)
 		io.WriteString(w, "\n")
@@ -109,10 +163,10 @@ func renderHeading(w io.Writer, h *ast.Heading, ctx *mdContext) {
 		if ruleW < 1 {
 			ruleW = 1
 		}
-		io.WriteString(w, ctx.styles.Syntax.Render(strings.Repeat("─", ruleW)))
+		io.WriteString(w, style.Render(strings.Repeat("─", ruleW)))
 	case 2:
 		var buf bytes.Buffer
-		renderHeadingInline(&buf, h, ctx, ctx.styles.Title.Bold(true), false)
+		renderHeadingInline(&buf, h, ctx, style, false)
 		body := buf.String()
 		if ctx.color {
 			// Apply underline manually so lipgloss doesn't degrade into
@@ -127,7 +181,7 @@ func renderHeading(w io.Writer, h *ast.Heading, ctx *mdContext) {
 	default:
 		indent := strings.Repeat(ctx.styles.Indent, h.Level-3)
 		io.WriteString(w, indent)
-		renderHeadingInline(w, h, ctx, ctx.styles.Name, false)
+		renderHeadingInline(w, h, ctx, style, false)
 	}
 }
 
@@ -391,18 +445,20 @@ func renderTable(w io.Writer, n ast.Node, ctx *mdContext) {
 	for child := n.FirstChild(); child != nil; child = child.NextSibling() {
 		switch child.Kind() {
 		case extast.KindTableHeader:
-			headers = collectRow(child, ctx)
+			headers = collectRow(child, headerCellContext(ctx))
 		case extast.KindTableRow:
 			rows = append(rows, collectRow(child, ctx))
 		}
 	}
 	t := lgtable.New().
 		Border(ctx.styles.Border).
-		BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("240"))).
+		BorderStyle(ctx.styles.Syntax).
+		BorderRow(true).
 		Headers(headers...)
 	for _, r := range rows {
 		t = t.Row(r...)
 	}
+	widths := balancedColumnWidths(headers, rows, ctx.width)
 	t = t.StyleFunc(func(row, col int) lipgloss.Style {
 		var base lipgloss.Style
 		if row == lgtable.HeaderRow {
@@ -410,9 +466,175 @@ func renderTable(w io.Writer, n ast.Node, ctx *mdContext) {
 		} else {
 			base = ctx.styles.Rows
 		}
-		return base.Padding(0, 1).Align(lipgloss.Left)
+		s := base.Padding(0, 1).Align(lipgloss.Left)
+		if col >= 0 && col < len(widths) {
+			s = s.Width(widths[col])
+		}
+		return s
 	})
 	io.WriteString(w, t.Render())
+}
+
+// balancedColumnWidths allocates a per-column width (including Padding(0, 1))
+// that sums to `totalWidth - (cols+1)` vertical-border chars. Returns nil
+// when the table fits naturally — leave column widths unconstrained so
+// lipgloss renders at the content's natural size.
+//
+// Allocation uses max-min water-filling: any column whose natural width
+// fits within its fair share of the available space gets exactly that
+// width (so "compact" columns aren't padded into empty space and don't
+// wrap when they don't have to). Remaining space is then split among the
+// columns that still need to stretch, in proportion to their natural
+// width — wider columns get proportionally more of the slack so the
+// layout feels balanced. Long unbreakable tokens may still break
+// mid-word; lipgloss/ansi.Wrap handles that gracefully.
+func balancedColumnWidths(headers []string, rows [][]string, totalWidth int) []int {
+	cols := tableColumnCount(headers, rows)
+	if cols == 0 || totalWidth <= 0 {
+		return nil
+	}
+
+	nat := columnNaturalWidths(headers, rows, cols)
+	natTotal := make([]int, cols)
+	natSum := 0
+	for i, w := range nat {
+		natTotal[i] = w + 2
+		natSum += natTotal[i]
+	}
+
+	borders := cols + 1
+	avail := totalWidth - borders
+	if avail <= 0 || natSum <= avail {
+		return nil
+	}
+	return waterFillWidths(natTotal, avail, 3)
+}
+
+// waterFillWidths returns per-column widths summing to `avail`. Each
+// column's natural width is fixed when it fits within its current
+// fair share; the remaining columns split the leftover space
+// proportionally to their natural widths, with each share clamped to
+// `floor` chars at minimum.
+func waterFillWidths(natTotal []int, avail, floor int) []int {
+	n := len(natTotal)
+	out := make([]int, n)
+	if n == 0 || avail <= 0 {
+		return out
+	}
+	if avail <= n*floor {
+		for i := range out {
+			out[i] = floor
+		}
+		return out
+	}
+
+	order := make([]int, n)
+	for i := range order {
+		order[i] = i
+	}
+	sort.SliceStable(order, func(a, b int) bool {
+		return natTotal[order[a]] < natTotal[order[b]]
+	})
+
+	fixed := make([]bool, n)
+	remaining := avail
+	unfixed := n
+	for _, i := range order {
+		if unfixed == 0 {
+			break
+		}
+		share := remaining / unfixed
+		if natTotal[i] <= share {
+			out[i] = natTotal[i]
+			remaining -= natTotal[i]
+			fixed[i] = true
+			unfixed--
+		}
+	}
+	if unfixed == 0 {
+		return out
+	}
+
+	sumW := 0
+	for i, w := range natTotal {
+		if !fixed[i] {
+			sumW += w
+		}
+	}
+	rem := make([]float64, n)
+	used := 0
+	for i, w := range natTotal {
+		if fixed[i] {
+			continue
+		}
+		share := float64(w) / float64(sumW) * float64(remaining)
+		v := int(share)
+		if v < floor {
+			v = floor
+		}
+		out[i] = v
+		rem[i] = share - float64(v)
+		used += v
+	}
+	diff := remaining - used
+	for diff > 0 {
+		bestIdx, bestRem := -1, -1.0
+		for i, r := range rem {
+			if !fixed[i] && r > bestRem {
+				bestRem, bestIdx = r, i
+			}
+		}
+		if bestIdx < 0 {
+			break
+		}
+		out[bestIdx]++
+		rem[bestIdx] = -1
+		diff--
+	}
+	for diff < 0 {
+		bestIdx, bestRem := -1, math.MaxFloat64
+		for i, r := range rem {
+			if !fixed[i] && out[i] > floor && r < bestRem {
+				bestRem, bestIdx = r, i
+			}
+		}
+		if bestIdx < 0 {
+			break
+		}
+		out[bestIdx]--
+		rem[bestIdx] = math.MaxFloat64
+		diff++
+	}
+	return out
+}
+
+func tableColumnCount(headers []string, rows [][]string) int {
+	cols := len(headers)
+	for _, r := range rows {
+		if len(r) > cols {
+			cols = len(r)
+		}
+	}
+	return cols
+}
+
+func columnNaturalWidths(headers []string, rows [][]string, cols int) []int {
+	out := make([]int, cols)
+	measure := func(cells []string) {
+		for i, c := range cells {
+			if i >= cols {
+				break
+			}
+			if w := ansi.StringWidth(c); w > out[i] {
+				out[i] = w
+			}
+		}
+	}
+	measure(headers)
+	for _, r := range rows {
+		measure(r)
+	}
+	return out
 }
 
 func collectRow(row ast.Node, ctx *mdContext) []string {
@@ -426,6 +648,23 @@ func collectRow(row ast.Node, ctx *mdContext) []string {
 		cells = append(cells, buf.String())
 	}
 	return cells
+}
+
+// headerCellContext returns a clone of ctx whose Text style inherits Bold from
+// Columns. lipgloss/ansi word-wraps cell content at whitespace and emits
+// \x1b[0m boundaries between word fragments; if Bold is applied via Columns
+// only as the outer wrapper, those resets clear it for every word after the
+// first. Baking Bold into the inline Text SGR makes each wrap fragment
+// re-emit Bold and the whole header stays bold.
+func headerCellContext(ctx *mdContext) *mdContext {
+	if !ctx.styles.Columns.GetBold() {
+		return ctx
+	}
+	cloned := *ctx
+	clonedStyles := *ctx.styles
+	clonedStyles.Text = ctx.styles.Text.Bold(true)
+	cloned.styles = &clonedStyles
+	return &cloned
 }
 
 // renderInlinesTo walks all inline children of n and writes their rendered
@@ -450,7 +689,7 @@ func renderInlineNode(w io.Writer, n ast.Node, ctx *mdContext) {
 		s := n.(*ast.String)
 		io.WriteString(w, ctx.styles.Text.Render(string(s.Value)))
 	case ast.KindCodeSpan:
-		io.WriteString(w, ctx.styles.Syntax.Render(plainInline(n, ctx)))
+		io.WriteString(w, ctx.styles.Code.Render(inlineText(n, ctx.src)))
 	case ast.KindEmphasis:
 		em := n.(*ast.Emphasis)
 		text := plainInline(n, ctx)

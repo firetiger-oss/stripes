@@ -19,9 +19,11 @@ type Styles struct {
 	Boolean lipgloss.Style
 	Null    lipgloss.Style
 	Syntax  lipgloss.Style
+	Code    lipgloss.Style
 	Anchor  lipgloss.Style
 	Comment lipgloss.Style
 	Title   lipgloss.Style
+	Heading [6]lipgloss.Style
 	Columns lipgloss.Style
 	Rows    lipgloss.Style
 	Border  lipgloss.Border
@@ -44,9 +46,18 @@ var DefaultStyles = &Styles{
 	Boolean: lipgloss.NewStyle().Foreground(lipgloss.Color("7")),
 	Null:    lipgloss.NewStyle().Foreground(lipgloss.Color("8")),
 	Syntax:  lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Bold(true),
+	Code:    lipgloss.NewStyle().Foreground(lipgloss.Color("183")),
 	Anchor:  lipgloss.NewStyle().Foreground(lipgloss.Color("12")),
 	Comment: lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Faint(true),
 	Title:   lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Bold(true),
+	Heading: [6]lipgloss.Style{
+		lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Bold(true), // H1: bright blue (rule below)
+		lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Bold(true), // H2: bright blue (underlined)
+		lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Bold(true), // H3: bright blue (no underline)
+		lipgloss.NewStyle().Foreground(lipgloss.Color("4")).Bold(true),  // H4: blue
+		lipgloss.NewStyle().Foreground(lipgloss.Color("4")),             // H5: blue
+		lipgloss.NewStyle().Foreground(lipgloss.Color("4")).Faint(true), // H6: blue faint
+	},
 	Columns: lipgloss.NewStyle().Bold(true),
 	Rows:    lipgloss.NewStyle(),
 	Border:  lipgloss.NormalBorder(),

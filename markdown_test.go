@@ -171,6 +171,48 @@ func TestMarkdownEmptyDoesNotPanic(t *testing.T) {
 	}
 }
 
+func TestMarkdownStripsFrontmatter(t *testing.T) {
+	input := "---\nname: rollout\ndescription: \"SRE-grade change control\"\n---\n\n# Rollout\n\nUmbrella skill body."
+	var buf strings.Builder
+	Markdown(&buf, strings.NewReader(input), DefaultStyles)
+	got := ansi.Strip(buf.String())
+	for _, banned := range []string{"name:", "description:", "rollout\n", "SRE-grade"} {
+		if strings.Contains(got, banned) {
+			t.Errorf("frontmatter leaked into output: %q\nGot:\n%s", banned, got)
+		}
+	}
+	if !strings.HasPrefix(got, "ROLLOUT\n") {
+		t.Errorf("expected output to start with rendered H1 heading, got:\n%s", got)
+	}
+	if !strings.Contains(got, "Umbrella skill body.") {
+		t.Errorf("body text missing\nGot:\n%s", got)
+	}
+}
+
+func TestMarkdownPreservesThematicBreakNotFrontmatter(t *testing.T) {
+	input := "# Title\n\nFirst paragraph.\n\n---\n\nSecond paragraph."
+	var buf strings.Builder
+	styles := DefaultStyles.Clone()
+	styles.Width = 40
+	Markdown(&buf, strings.NewReader(input), styles)
+	got := ansi.Strip(buf.String())
+	if !strings.Contains(got, strings.Repeat("─", 40)) {
+		t.Errorf("expected thematic break (40-char rule) in output\nGot:\n%s", got)
+	}
+}
+
+func TestMarkdownLeavesUnclosedFrontmatterAlone(t *testing.T) {
+	// Input starts with --- but never closes the fence; we must not strip
+	// it (the file is not really frontmatter — keep current rendering).
+	input := "---\nsome: yaml\nbut no closing fence\n\n# Heading\n"
+	var buf strings.Builder
+	Markdown(&buf, strings.NewReader(input), DefaultStyles)
+	got := ansi.Strip(buf.String())
+	if !strings.Contains(got, "some") {
+		t.Errorf("unclosed frontmatter should pass through unchanged\nGot:\n%s", got)
+	}
+}
+
 func TestMarkdownParagraphWrap(t *testing.T) {
 	styles := DefaultStyles.Clone()
 	styles.Width = 20
@@ -191,6 +233,97 @@ func TestMarkdownTable(t *testing.T) {
 	for _, want := range []string{"a", "b", "1", "2", "3", "4", "─", "│"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("table output missing %q\nGot:\n%s", want, got)
+		}
+	}
+}
+
+func TestMarkdownTableWraps(t *testing.T) {
+	input := "| name | description |\n|------|-------------|\n" +
+		"| alpha | this is a fairly long description that should wrap when the table is narrow |\n" +
+		"| beta  | short |"
+	styles := DefaultStyles.Clone()
+	styles.Width = 40
+	var buf strings.Builder
+	Markdown(&buf, strings.NewReader(input), styles)
+	got := ansi.Strip(buf.String())
+
+	for _, want := range []string{"name", "description", "alpha", "beta", "fairly", "wrap"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("table output missing %q\nGot:\n%s", want, got)
+		}
+	}
+	for _, line := range strings.Split(got, "\n") {
+		if w := ansi.StringWidth(line); w > styles.Width {
+			t.Errorf("line exceeds width %d (got %d): %q", styles.Width, w, line)
+		}
+	}
+}
+
+func TestMarkdownTableNoStretch(t *testing.T) {
+	input := "| a | b |\n|---|---|\n| 1 | 2 |"
+	styles := DefaultStyles.Clone()
+	styles.Width = 80
+	var buf strings.Builder
+	Markdown(&buf, strings.NewReader(input), styles)
+	got := ansi.Strip(buf.String())
+	for _, line := range strings.Split(got, "\n") {
+		if w := ansi.StringWidth(line); w >= styles.Width {
+			t.Errorf("small table was stretched to width %d: %q", w, line)
+		}
+	}
+}
+
+func TestMarkdownTableProportionalWidths(t *testing.T) {
+	// Short labels + long prose at narrow width: Description column should
+	// get noticeably more horizontal space than Quarter, words should stay
+	// intact (no mid-word breaks since the longest token "onboarding" is
+	// shorter than the share Description gets).
+	input := "| Quarter | Description |\n|---|---|\n" +
+		"| Q1 | An overview of customer onboarding metrics across various product lines |\n" +
+		"| Q2 | Detailed breakdown of churn and reasons reported by customers |"
+	styles := DefaultStyles.Clone()
+	styles.Width = 60
+	var buf strings.Builder
+	Markdown(&buf, strings.NewReader(input), styles)
+	got := ansi.Strip(buf.String())
+
+	// No line should exceed the configured width.
+	for _, line := range strings.Split(got, "\n") {
+		if w := ansi.StringWidth(line); w > styles.Width {
+			t.Errorf("line exceeds width %d (got %d): %q", styles.Width, w, line)
+		}
+	}
+	// Whole-word tokens must remain intact (no mid-word breaks for the
+	// longest natural-prose word in the input).
+	for _, want := range []string{"onboarding", "Detailed", "Quarter", "Description", "Q1", "Q2"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("word %q got broken across lines\nGot:\n%s", want, got)
+		}
+	}
+}
+
+func TestMarkdownTableLongTokenFallback(t *testing.T) {
+	// A column made of an 80-char hostname can't honor word-min protection
+	// in a 60-col terminal — must fall back to proportional + floor and
+	// produce a table that fits the requested width.
+	input := "| name  | host |\n|-------|------|\n" +
+		"| alpha | ft-20260303191446144900000029.cluster-cnky4cc4sk5k.us-west-2.rds.amazonaws.com |\n" +
+		"| beta  | shorthost |"
+	styles := DefaultStyles.Clone()
+	styles.Width = 50
+	var buf strings.Builder
+	Markdown(&buf, strings.NewReader(input), styles)
+	got := ansi.Strip(buf.String())
+
+	for _, line := range strings.Split(got, "\n") {
+		if w := ansi.StringWidth(line); w > styles.Width {
+			t.Errorf("line exceeds width %d (got %d): %q", styles.Width, w, line)
+		}
+	}
+	// All column contents present.
+	for _, want := range []string{"alpha", "beta", "shorthost", "20260303"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("output missing %q\nGot:\n%s", want, got)
 		}
 	}
 }
