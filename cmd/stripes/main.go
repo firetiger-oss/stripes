@@ -36,9 +36,9 @@ Flags:
       --content-type string   Override MIME type (e.g. application/vnd.foo+json)
       --schema string         Schema URL (protobuf full name)
       --color string          always|never|auto (default auto)
-  -w, --width int             Output width in columns. 0 (default) = no
-                              wrap; let the terminal soft-wrap so the
-                              output reflows on resize.
+  -w, --width int             Output width in columns. 0 (default) =
+                              auto-detect from the terminal; falls back
+                              to no wrap when stdout is not a TTY.
   -p, --pager string          Pager command (e.g. "less -R", "bat --plain").
                               Use "cat" to bypass paging on a TTY.
 
@@ -218,14 +218,21 @@ func resolveStyles(cfg *config) *stripes.Styles {
 		enable = os.Getenv("NO_COLOR") == "" && term.IsTerminal(int(os.Stdout.Fd()))
 	}
 
+	width := cfg.width
+	if width <= 0 {
+		if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 {
+			width = w
+		}
+	}
+
 	if enable {
 		lipgloss.SetColorProfile(termenv.TrueColor)
 		s := stripes.DefaultStyles.Clone()
-		s.Width = cfg.width
+		s.Width = width
 		return s
 	}
 	lipgloss.SetColorProfile(termenv.Ascii)
-	return &stripes.Styles{Indent: "  ", Width: cfg.width}
+	return &stripes.Styles{Indent: "  ", Width: width}
 }
 
 // openSink picks the output sink. If paging is active, it spawns the pager
