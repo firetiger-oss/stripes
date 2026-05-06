@@ -106,6 +106,8 @@ alias scat='stripes'              # cat-like, with paging on a TTY
 alias spcat='stripes -p cat'      # always-stream, never page
 ```
 
+![stripes CLI screenshot](assets/screenshot.png)
+
 ## Contributing
 
 Contributions are welcome! To get started:
