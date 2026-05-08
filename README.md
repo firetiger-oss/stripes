@@ -4,7 +4,7 @@
   <img width="300" height="255" alt="stripes" src="stripes.png" />
 </p>
 
-Streaming pretty-printer for structured data formats — JSON, YAML, XML, HTML, CSV, Dockerfile, markdown, protobuf, plain text, source code (via [chroma](https://github.com/alecthomas/chroma)) — usable as a Go library or as a standalone CLI.
+Streaming pretty-printer for structured data formats — JSON, YAML, XML, HTML, CSV, Dockerfile, markdown, protobuf, plain text, source code (via [chroma](https://github.com/alecthomas/chroma)), WebAssembly — usable as a Go library or as a standalone CLI.
 
 ## Motivation
 
@@ -62,10 +62,16 @@ renderer := stripes.Func(ct, "")
 | `text/x-source-code`     | [`Code`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Code) (factory; pass chroma lexer name)      |
 | `text/plain`             | [`Text`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Text)                                        |
 | `application/protobuf`   | [`Protobuf`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Protobuf)                                |
+| `application/wasm`       | [`Wasm`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Wasm) (requires `wasm2wat` from WABT)        |
 | (passthrough)            | [`Plain`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Plain)                                      |
 
 All share the [`Renderer`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Renderer)
 signature: `func(io.Writer, io.Reader, *Styles)`.
+
+`.wat`/`.wast` text-format WebAssembly is detected automatically and
+routed through chroma's `wat` lexer. Binary `.wasm` rendering shells
+out to `wasm2wat` from [WABT](https://github.com/WebAssembly/wabt);
+install via `brew install wabt` or `apt install wabt`.
 
 ### [stripes.Styles](https://pkg.go.dev/github.com/firetiger-oss/stripes#Styles)
 
@@ -84,10 +90,10 @@ $ stripes --help
 Usage: stripes [flags] [file]
 
 Pretty-print structured data (JSON, YAML, XML, HTML, CSV, Dockerfile, markdown,
-protobuf, text, source code) with ANSI colors and optional paging.
+protobuf, text, source code, wasm) with ANSI colors and optional paging.
 
 Flags:
-  -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|text|code|protobuf|auto (default auto)
+  -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|text|code|protobuf|wasm|auto (default auto)
       --content-type string   Override MIME type (e.g. application/vnd.foo+json)
       --schema string         Schema URL (protobuf full name)
       --color string          always|never|auto (default auto)
