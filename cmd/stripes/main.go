@@ -52,6 +52,7 @@ Flags:
                               to no wrap when stdout is not a TTY.
   -p, --pager string          Pager command (e.g. "less -R", "bat --plain").
                               Use "cat" to bypass paging on a TTY.
+  -n, --line-numbers          Show line numbers in a left-aligned gutter.
 
 Pager resolution: -p flag > $STRIPES_PAGER > $PAGER > "less -R"
 Profile resolution: --profile flag > $STRIPES_PROFILE > built-in default
@@ -66,6 +67,7 @@ type config struct {
 	profile     string
 	width       int
 	pager       string
+	lineNumbers bool
 }
 
 func main() {
@@ -105,6 +107,8 @@ func parseFlags(args []string) (*config, []string, error) {
 	fs.IntVar(&cfg.width, "w", 0, "output width (shorthand)")
 	fs.StringVar(&cfg.pager, "pager", "", "pager command")
 	fs.StringVar(&cfg.pager, "p", "", "pager command (shorthand)")
+	fs.BoolVar(&cfg.lineNumbers, "line-numbers", false, "show line numbers")
+	fs.BoolVar(&cfg.lineNumbers, "n", false, "show line numbers (shorthand)")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, nil, err
@@ -169,6 +173,9 @@ func renderOne(sink io.Writer, name string, input io.Reader, cfg *config, styles
 	renderer := stripes.Func(contentType, cfg.schema)
 	if renderer == nil {
 		renderer = stripes.Plain
+	}
+	if cfg.lineNumbers {
+		renderer = stripes.WithLineNumbers(renderer)
 	}
 
 	tw := &trailingNewlineWriter{w: sink}

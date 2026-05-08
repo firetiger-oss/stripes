@@ -1,0 +1,27 @@
+# Width boundary: 10 lines force a 2-digit gutter; line 1 is right-aligned.
+stdin input.txt
+exec stripes --color=never -p cat -n --format=text
+cmp stdout expected.txt
+
+-- input.txt --
+one
+two
+three
+four
+five
+six
+seven
+eight
+nine
+ten
+-- expected.txt --
+ 1│ one
+ 2│ two
+ 3│ three
+ 4│ four
+ 5│ five
+ 6│ six
+ 7│ seven
+ 8│ eight
+ 9│ nine
+10│ ten

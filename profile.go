@@ -35,31 +35,33 @@ type Profile struct {
 
 // ProfileStyles is the per-element style table within a [Profile].
 type ProfileStyles struct {
-	Name     StyleSpec   `yaml:"name"`
-	Text     StyleSpec   `yaml:"text"`
-	String   StyleSpec   `yaml:"string"`
-	Number   StyleSpec   `yaml:"number"`
-	Boolean  StyleSpec   `yaml:"boolean"`
-	Null     StyleSpec   `yaml:"null"`
-	Syntax   StyleSpec   `yaml:"syntax"`
-	Code     StyleSpec   `yaml:"code"`
-	Anchor   StyleSpec   `yaml:"anchor"`
-	Comment  StyleSpec   `yaml:"comment"`
-	Title    StyleSpec   `yaml:"title"`
-	Columns  StyleSpec   `yaml:"columns"`
-	Rows     StyleSpec   `yaml:"rows"`
-	Headings []StyleSpec `yaml:"headings"`
+	Name       StyleSpec   `yaml:"name"`
+	Text       StyleSpec   `yaml:"text"`
+	String     StyleSpec   `yaml:"string"`
+	Number     StyleSpec   `yaml:"number"`
+	Boolean    StyleSpec   `yaml:"boolean"`
+	Null       StyleSpec   `yaml:"null"`
+	Syntax     StyleSpec   `yaml:"syntax"`
+	Code       StyleSpec   `yaml:"code"`
+	Anchor     StyleSpec   `yaml:"anchor"`
+	Comment    StyleSpec   `yaml:"comment"`
+	Title      StyleSpec   `yaml:"title"`
+	LineNumber StyleSpec   `yaml:"line-number"`
+	Columns    StyleSpec   `yaml:"columns"`
+	Rows       StyleSpec   `yaml:"rows"`
+	Headings   []StyleSpec `yaml:"headings"`
 }
 
 // StyleSpec describes one styled element. Color may be a hex value
 // (#rrggbb), an ANSI palette index ("0".."255"), or any color name
 // recognised by lipgloss.
 type StyleSpec struct {
-	Color     string `yaml:"color,omitempty"`
-	Bold      bool   `yaml:"bold,omitempty"`
-	Faint     bool   `yaml:"faint,omitempty"`
-	Italic    bool   `yaml:"italic,omitempty"`
-	Underline bool   `yaml:"underline,omitempty"`
+	Color      string `yaml:"color,omitempty"`
+	Background string `yaml:"background,omitempty"`
+	Bold       bool   `yaml:"bold,omitempty"`
+	Faint      bool   `yaml:"faint,omitempty"`
+	Italic     bool   `yaml:"italic,omitempty"`
+	Underline  bool   `yaml:"underline,omitempty"`
 }
 
 // LoadProfile resolves a profile reference. The reference may be:
@@ -197,6 +199,11 @@ func (p *Profile) ToStyles() *Styles {
 	s.Anchor = applyStyleSpec(p.Styles.Anchor)
 	s.Comment = applyStyleSpec(p.Styles.Comment)
 	s.Title = applyStyleSpec(p.Styles.Title)
+	if p.Styles.LineNumber == (StyleSpec{}) {
+		s.LineNumber = DefaultStyles.LineNumber
+	} else {
+		s.LineNumber = applyStyleSpec(p.Styles.LineNumber)
+	}
 	s.Columns = applyStyleSpec(p.Styles.Columns)
 	s.Rows = applyStyleSpec(p.Styles.Rows)
 
@@ -235,6 +242,9 @@ func applyStyleSpec(spec StyleSpec) lipgloss.Style {
 	style := lipgloss.NewStyle()
 	if spec.Color != "" {
 		style = style.Foreground(lipgloss.Color(spec.Color))
+	}
+	if spec.Background != "" {
+		style = style.Background(lipgloss.Color(spec.Background))
 	}
 	if spec.Bold {
 		style = style.Bold(true)
