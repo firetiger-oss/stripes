@@ -67,11 +67,11 @@ func buildAdd() []byte {
 	section(&m, secExport, exports.Bytes())
 
 	body := []byte{
-		0x00,             // 0 local groups
-		0x20, 0x00,       // local.get 0
-		0x20, 0x01,       // local.get 1
-		0x6a,             // i32.add
-		0x0b,             // end
+		0x00,       // 0 local groups
+		0x20, 0x00, // local.get 0
+		0x20, 0x01, // local.get 1
+		0x6a, // i32.add
+		0x0b, // end
 	}
 	section(&m, secCode, codeSection([][]byte{body}))
 
@@ -108,7 +108,7 @@ func buildGreet() []byte {
 	body := []byte{
 		0x00,       // 0 locals
 		0x10, 0x00, // call $greet (func index 0)
-		0x0b,       // end
+		0x0b, // end
 	}
 	section(&m, secCode, codeSection([][]byte{body}))
 
@@ -154,13 +154,13 @@ func buildCounter() []byte {
 	section(&m, secExport, exports.Bytes())
 
 	body := []byte{
-		0x00,             // 0 locals
-		0x23, 0x00,       // global.get 0
-		0x41, 0x01,       // i32.const 1
-		0x6a,             // i32.add
-		0x24, 0x00,       // global.set 0
-		0x23, 0x00,       // global.get 0
-		0x0b,             // end
+		0x00,       // 0 locals
+		0x23, 0x00, // global.get 0
+		0x41, 0x01, // i32.const 1
+		0x6a,       // i32.add
+		0x24, 0x00, // global.set 0
+		0x23, 0x00, // global.get 0
+		0x0b, // end
 	}
 	section(&m, secCode, codeSection([][]byte{body}))
 
