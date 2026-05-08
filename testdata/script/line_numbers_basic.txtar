@@ -1,0 +1,14 @@
+# --line-numbers prepends right-aligned numbers to each rendered line.
+# With --color=never the styled gutter is plain text.
+stdin input.txt
+exec stripes --color=never -p cat -n
+cmp stdout expected.txt
+
+-- input.txt --
+alpha
+beta
+gamma
+-- expected.txt --
+1│ alpha
+2│ beta
+3│ gamma

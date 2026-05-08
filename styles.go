@@ -12,23 +12,24 @@ type Renderer func(io.Writer, io.Reader, *Styles)
 
 // Styles defines the styling configuration for rendering various data types
 type Styles struct {
-	Name    lipgloss.Style
-	Text    lipgloss.Style
-	String  lipgloss.Style
-	Number  lipgloss.Style
-	Boolean lipgloss.Style
-	Null    lipgloss.Style
-	Syntax  lipgloss.Style
-	Code    lipgloss.Style
-	Anchor  lipgloss.Style
-	Comment lipgloss.Style
-	Title   lipgloss.Style
-	Heading [6]lipgloss.Style
-	Columns lipgloss.Style
-	Rows    lipgloss.Style
-	Border  lipgloss.Border
-	Indent  string
-	Width   int
+	Name       lipgloss.Style
+	Text       lipgloss.Style
+	String     lipgloss.Style
+	Number     lipgloss.Style
+	Boolean    lipgloss.Style
+	Null       lipgloss.Style
+	Syntax     lipgloss.Style
+	Code       lipgloss.Style
+	Anchor     lipgloss.Style
+	Comment    lipgloss.Style
+	Title      lipgloss.Style
+	LineNumber lipgloss.Style
+	Heading    [6]lipgloss.Style
+	Columns    lipgloss.Style
+	Rows       lipgloss.Style
+	Border     lipgloss.Border
+	Indent     string
+	Width      int
 
 	// CodeStyle names the chroma style used for syntax highlighting in
 	// code blocks (see github.com/alecthomas/chroma/v2/styles). Empty
@@ -44,17 +45,18 @@ func (s *Styles) Clone() *Styles {
 
 // DefaultStyles provides a grayscale styling theme using shades of grey, dimming, and bold
 var DefaultStyles = &Styles{
-	Name:    lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Bold(true),
-	Text:    lipgloss.NewStyle().Foreground(lipgloss.Color("7")),
-	String:  lipgloss.NewStyle().Foreground(lipgloss.Color("2")),
-	Number:  lipgloss.NewStyle().Foreground(lipgloss.Color("7")),
-	Boolean: lipgloss.NewStyle().Foreground(lipgloss.Color("7")),
-	Null:    lipgloss.NewStyle().Foreground(lipgloss.Color("8")),
-	Syntax:  lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Bold(true),
-	Code:    lipgloss.NewStyle().Foreground(lipgloss.Color("183")),
-	Anchor:  lipgloss.NewStyle().Foreground(lipgloss.Color("12")),
-	Comment: lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Faint(true),
-	Title:   lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Bold(true),
+	Name:       lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Bold(true),
+	Text:       lipgloss.NewStyle().Foreground(lipgloss.Color("7")),
+	String:     lipgloss.NewStyle().Foreground(lipgloss.Color("2")),
+	Number:     lipgloss.NewStyle().Foreground(lipgloss.Color("7")),
+	Boolean:    lipgloss.NewStyle().Foreground(lipgloss.Color("7")),
+	Null:       lipgloss.NewStyle().Foreground(lipgloss.Color("8")),
+	Syntax:     lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Bold(true),
+	Code:       lipgloss.NewStyle().Foreground(lipgloss.Color("183")),
+	Anchor:     lipgloss.NewStyle().Foreground(lipgloss.Color("12")),
+	Comment:    lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Faint(true),
+	Title:      lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Bold(true),
+	LineNumber: lipgloss.NewStyle().Foreground(lipgloss.Color("244")),
 	Heading: [6]lipgloss.Style{
 		lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Bold(true), // H1: bright blue (rule below)
 		lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Bold(true), // H2: bright blue (underlined)

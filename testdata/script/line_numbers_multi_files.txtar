@@ -1,0 +1,21 @@
+# Multi-file with --line-numbers: numbering restarts at 1 for each file,
+# and the existing labeled rule still separates files.
+exec stripes --color=never -p cat -n -w 40 a.txt b.txt
+cmp stdout expected.txt
+
+-- a.txt --
+alpha
+beta
+-- b.txt --
+gamma
+delta
+epsilon
+-- expected.txt --
+──────────────── a.txt ─────────────────
+1│ alpha
+2│ beta
+
+──────────────── b.txt ─────────────────
+1│ gamma
+2│ delta
+3│ epsilon
