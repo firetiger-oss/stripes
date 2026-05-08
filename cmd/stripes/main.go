@@ -3,11 +3,12 @@
 //
 // Usage:
 //
-//	stripes [flags] [file]
+//	stripes [flags] [file...]
 //
-// If no file is given, stripes reads from stdin. When stdout is a terminal it
-// pipes the styled output through a pager (less -R by default). When stdout
-// is not a terminal it writes directly.
+// If no file is given, stripes reads from stdin. When multiple files are
+// given, they are rendered back to back, separated by a labeled rule. When
+// stdout is a terminal it pipes the styled output through a pager (less -R
+// by default). When stdout is not a terminal it writes directly.
 package main
 
 import (
@@ -21,15 +22,20 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/firetiger-oss/stripes"
 	"github.com/muesli/termenv"
 	"golang.org/x/term"
 )
 
-const usage = `Usage: stripes [flags] [file]
+const usage = `Usage: stripes [flags] [file...]
 
 Pretty-print structured data (JSON, YAML, XML, HTML, CSV, Dockerfile, markdown,
 protobuf, text, source code, wasm) with ANSI colors and optional paging.
+
+When multiple files are given, each is preceded by a centered rule
+(───── filename ─────) so the source is visible inline. --format,
+--content-type, and --schema apply to all of them.
 
 Flags:
   -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|text|code|protobuf|wasm|auto (default auto)
@@ -63,7 +69,7 @@ type config struct {
 }
 
 func main() {
-	cfg, file, err := parseFlags(os.Args[1:])
+	cfg, files, err := parseFlags(os.Args[1:])
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			os.Exit(0)
@@ -72,7 +78,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	if err := run(cfg, file); err != nil {
+	if err := run(cfg, files); err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			os.Exit(exitErr.ExitCode())
@@ -82,7 +88,7 @@ func main() {
 	}
 }
 
-func parseFlags(args []string) (*config, string, error) {
+func parseFlags(args []string) (*config, []string, error) {
 	cfg := &config{format: "auto", color: "auto"}
 
 	fs := flag.NewFlagSet("stripes", flag.ContinueOnError)
@@ -101,48 +107,54 @@ func parseFlags(args []string) (*config, string, error) {
 	fs.StringVar(&cfg.pager, "p", "", "pager command (shorthand)")
 
 	if err := fs.Parse(args); err != nil {
-		return nil, "", err
+		return nil, nil, err
 	}
 
 	switch cfg.color {
 	case "auto", "always", "never":
 	default:
-		return nil, "", fmt.Errorf("invalid --color %q (want auto|always|never)", cfg.color)
+		return nil, nil, fmt.Errorf("invalid --color %q (want auto|always|never)", cfg.color)
 	}
 
 	switch cfg.format {
 	case "auto", "json", "yaml", "xml", "html", "csv", "dockerfile", "markdown", "text", "code", "protobuf", "wasm":
 	default:
-		return nil, "", fmt.Errorf("invalid --format %q", cfg.format)
+		return nil, nil, fmt.Errorf("invalid --format %q", cfg.format)
 	}
 
-	if fs.NArg() > 1 {
-		return nil, "", fmt.Errorf("too many positional arguments (got %d, want 0 or 1)", fs.NArg())
-	}
-
-	file := ""
-	if fs.NArg() == 1 {
-		file = fs.Arg(0)
-	}
-	return cfg, file, nil
+	return cfg, fs.Args(), nil
 }
 
-func run(cfg *config, file string) error {
-	var input io.ReadCloser
-	var name string
+func run(cfg *config, files []string) error {
+	styles := resolveStyles(cfg)
+	sink, finish := openSink(cfg)
 
-	if file != "" {
+	if len(files) == 0 {
+		renderOne(sink, "", os.Stdin, cfg, styles)
+		return finish()
+	}
+
+	for i, file := range files {
 		f, err := os.Open(file)
 		if err != nil {
+			_ = finish()
 			return err
 		}
-		input = f
-		name = file
-	} else {
-		input = os.Stdin
+		if len(files) > 1 {
+			if i > 0 {
+				io.WriteString(sink, "\n")
+			}
+			writeSeparator(sink, file, styles)
+		}
+		renderOne(sink, file, f, cfg, styles)
+		_ = f.Close()
 	}
-	defer input.Close()
+	return finish()
+}
 
+// renderOne renders a single input into sink. name is the source filename
+// (used for content-type detection); empty for stdin.
+func renderOne(sink io.Writer, name string, input io.Reader, cfg *config, styles *stripes.Styles) {
 	br := bufio.NewReader(input)
 	peek, _ := br.Peek(512)
 
@@ -159,13 +171,30 @@ func run(cfg *config, file string) error {
 		renderer = stripes.Plain
 	}
 
-	styles := resolveStyles(cfg)
-
-	sink, finish := openSink(cfg)
 	tw := &trailingNewlineWriter{w: sink}
 	renderer(tw, br, styles)
 	tw.flush()
-	return finish()
+}
+
+// writeSeparator writes a labeled rule before a rendered file. The label is
+// centered between two runs of ─. Rendered through styles.Comment so it's
+// faint and doesn't compete with content; under termenv.Ascii Comment is a
+// no-op.
+func writeSeparator(w io.Writer, name string, styles *stripes.Styles) {
+	width := styles.Width
+	if width <= 0 {
+		width = 80
+	}
+	label := " " + name + " "
+	rule := width - ansi.StringWidth(label)
+	if rule < 2 {
+		rule = 2
+	}
+	left := rule / 2
+	right := rule - left
+	line := strings.Repeat("─", left) + label + strings.Repeat("─", right)
+	io.WriteString(w, styles.Comment.Render(line))
+	io.WriteString(w, "\n")
 }
 
 // trailingNewlineWriter ensures the final byte written is a newline.
