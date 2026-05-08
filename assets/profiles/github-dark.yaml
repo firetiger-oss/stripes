@@ -1,0 +1,30 @@
+# github-dark — colors derived from GitHub's web syntax theme (dark).
+# Pairs with chroma's "github-dark" code style.
+
+description: GitHub Dark — matches the dark syntax theme on github.com.
+code-style: github-dark
+
+styles:
+  name:    {color: "#79c0ff", bold: true}     # blue — keys
+  text:    {color: "#c9d1d9"}                  # fg
+  string:  {color: "#a5d6ff"}                  # light blue
+  number:  {color: "#79c0ff"}
+  boolean: {color: "#79c0ff"}
+  "null":  {color: "#8b949e"}                  # muted
+  syntax:  {color: "#c9d1d9", bold: true}
+  code:    {color: "#d2a8ff"}                  # purple
+  anchor:  {color: "#58a6ff"}
+  comment: {color: "#8b949e", faint: true}
+  title:   {color: "#c9d1d9", bold: true}
+  columns: {bold: true}
+  rows:    {}
+  headings:
+    - {color: "#ff7b72", bold: true}           # red — like H1 in github md
+    - {color: "#ff7b72", bold: true}
+    - {color: "#79c0ff", bold: true}
+    - {color: "#79c0ff", bold: true}
+    - {color: "#79c0ff"}
+    - {color: "#8b949e", faint: true}
+
+border: normal
+indent: "  "

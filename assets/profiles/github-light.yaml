@@ -1,0 +1,30 @@
+# github-light — colors derived from GitHub's web syntax theme (light).
+# Pairs with chroma's "github" code style (the light variant).
+
+description: GitHub Light — matches the light syntax theme on github.com.
+code-style: github
+
+styles:
+  name:    {color: "#0550ae", bold: true}     # blue
+  text:    {color: "#24292f"}                  # fg
+  string:  {color: "#0a3069"}                  # deep blue
+  number:  {color: "#0550ae"}
+  boolean: {color: "#0550ae"}
+  "null":  {color: "#6e7781"}                  # muted
+  syntax:  {color: "#24292f", bold: true}
+  code:    {color: "#8250df"}                  # purple
+  anchor:  {color: "#0969da"}
+  comment: {color: "#6e7781", faint: true}
+  title:   {color: "#24292f", bold: true}
+  columns: {bold: true}
+  rows:    {}
+  headings:
+    - {color: "#cf222e", bold: true}           # red
+    - {color: "#cf222e", bold: true}
+    - {color: "#0550ae", bold: true}
+    - {color: "#0550ae", bold: true}
+    - {color: "#0550ae"}
+    - {color: "#6e7781", faint: true}
+
+border: normal
+indent: "  "

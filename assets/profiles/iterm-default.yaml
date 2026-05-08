@@ -1,0 +1,39 @@
+# iterm-default — palette derived from the default iTerm2 "Default" profile
+# (dark mode). Hex colors come from the ANSI 0-15 entries of that preset, so
+# the output blends visually with the surrounding terminal.
+#
+# Map of stripes role -> iTerm ANSI slot:
+#   name/anchor/H1-H3   = bright blue   (ANSI 12, #a7abf2)
+#   text/number/bool    = white         (ANSI 7,  #c7c7c7)
+#   string              = green         (ANSI 2,  #00c200)
+#   null/comment        = bright black  (ANSI 8,  #686868)
+#   code                = bright magenta (ANSI 13, #e17ee1)
+#   H4-H6               = blue          (ANSI 4,  #2744c7)
+
+description: Matches the default iTerm2 "Default" profile (dark mode).
+code-style: github-dark
+
+styles:
+  name:    {color: "#a7abf2", bold: true}
+  text:    {color: "#c7c7c7"}
+  string:  {color: "#00c200"}
+  number:  {color: "#c7c7c7"}
+  boolean: {color: "#c7c7c7"}
+  "null":  {color: "#686868"}
+  syntax:  {color: "#c7c7c7", bold: true}
+  code:    {color: "#e17ee1"}
+  anchor:  {color: "#a7abf2"}
+  comment: {color: "#686868", faint: true}
+  title:   {color: "#c7c7c7", bold: true}
+  columns: {bold: true}
+  rows:    {}
+  headings:
+    - {color: "#a7abf2", bold: true}
+    - {color: "#a7abf2", bold: true}
+    - {color: "#a7abf2", bold: true}
+    - {color: "#2744c7", bold: true}
+    - {color: "#2744c7"}
+    - {color: "#2744c7", faint: true}
+
+border: normal
+indent: "  "

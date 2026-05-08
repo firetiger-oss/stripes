@@ -1,0 +1,30 @@
+# nord — Arctic-inspired palette by Arctic Ice Studio (nordtheme.com).
+# Pairs with chroma's "nord" code style.
+
+description: Nord — calm Arctic-inspired blues.
+code-style: nord
+
+styles:
+  name:    {color: "#88c0d0", bold: true}     # frost — keys
+  text:    {color: "#d8dee9"}                  # snow storm
+  string:  {color: "#a3be8c"}                  # aurora green
+  number:  {color: "#b48ead"}                  # aurora purple
+  boolean: {color: "#b48ead"}
+  "null":  {color: "#4c566a"}                  # polar night, muted
+  syntax:  {color: "#d8dee9", bold: true}
+  code:    {color: "#bf616a"}                  # aurora red
+  anchor:  {color: "#81a1c1"}                  # frost blue
+  comment: {color: "#4c566a", faint: true}
+  title:   {color: "#eceff4", bold: true}
+  columns: {bold: true}
+  rows:    {}
+  headings:
+    - {color: "#88c0d0", bold: true}           # frost light blue
+    - {color: "#88c0d0", bold: true}
+    - {color: "#81a1c1", bold: true}           # frost blue
+    - {color: "#5e81ac", bold: true}           # frost deep blue
+    - {color: "#5e81ac"}
+    - {color: "#4c566a", faint: true}
+
+border: normal
+indent: "  "

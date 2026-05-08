@@ -37,7 +37,7 @@ func Code(lang string) Renderer {
 			io.WriteString(w, strings.TrimRight(string(src), "\n"))
 			return
 		}
-		style := chromastyles.Get("github-dark")
+		style := chromastyles.Get(chromaStyleName(styles))
 		if style == nil {
 			style = chromastyles.Fallback
 		}
@@ -64,4 +64,13 @@ func resolveLexer(lang string, src []byte) chroma.Lexer {
 		return lex
 	}
 	return nil
+}
+
+// chromaStyleName returns the chroma style name configured on styles, or
+// the package default ("github-dark") when unset.
+func chromaStyleName(styles *Styles) string {
+	if styles != nil && styles.CodeStyle != "" {
+		return styles.CodeStyle
+	}
+	return "github-dark"
 }

@@ -1,0 +1,30 @@
+# catppuccin-mocha — popular soft pastel dark theme (catppuccin.com).
+# Pairs with chroma's "catppuccin-mocha" code style.
+
+description: Catppuccin Mocha — soft pastel modern dark theme.
+code-style: catppuccin-mocha
+
+styles:
+  name:    {color: "#89b4fa", bold: true}     # blue — keys
+  text:    {color: "#cdd6f4"}                  # text
+  string:  {color: "#a6e3a1"}                  # green
+  number:  {color: "#fab387"}                  # peach
+  boolean: {color: "#fab387"}
+  "null":  {color: "#6c7086"}                  # overlay0
+  syntax:  {color: "#cdd6f4", bold: true}
+  code:    {color: "#f5c2e7"}                  # pink
+  anchor:  {color: "#89dceb"}                  # sky
+  comment: {color: "#6c7086", faint: true}
+  title:   {color: "#cdd6f4", bold: true}
+  columns: {bold: true}
+  rows:    {}
+  headings:
+    - {color: "#cba6f7", bold: true}           # mauve
+    - {color: "#cba6f7", bold: true}
+    - {color: "#89b4fa", bold: true}           # blue
+    - {color: "#94e2d5", bold: true}           # teal
+    - {color: "#94e2d5"}
+    - {color: "#6c7086", faint: true}
+
+border: normal
+indent: "  "

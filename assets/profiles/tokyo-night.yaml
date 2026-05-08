@@ -1,0 +1,30 @@
+# tokyo-night — Folke Lemaitre's popular dark theme (Night variant).
+# Pairs with chroma's "tokyonight-night" code style.
+
+description: Tokyo Night — Folke's modern dark theme, Night variant.
+code-style: tokyonight-night
+
+styles:
+  name:    {color: "#7aa2f7", bold: true}     # blue — keys
+  text:    {color: "#c0caf5"}                  # fg
+  string:  {color: "#9ece6a"}                  # green
+  number:  {color: "#ff9e64"}                  # orange
+  boolean: {color: "#ff9e64"}
+  "null":  {color: "#565f89"}                  # comment
+  syntax:  {color: "#c0caf5", bold: true}
+  code:    {color: "#bb9af7"}                  # purple
+  anchor:  {color: "#7dcfff"}                  # cyan
+  comment: {color: "#565f89", faint: true}
+  title:   {color: "#c0caf5", bold: true}
+  columns: {bold: true}
+  rows:    {}
+  headings:
+    - {color: "#bb9af7", bold: true}           # purple
+    - {color: "#bb9af7", bold: true}
+    - {color: "#7aa2f7", bold: true}           # blue
+    - {color: "#7dcfff", bold: true}           # cyan
+    - {color: "#7dcfff"}
+    - {color: "#565f89", faint: true}
+
+border: normal
+indent: "  "

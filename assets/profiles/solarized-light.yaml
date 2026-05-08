@@ -1,0 +1,30 @@
+# solarized-light — Ethan Schoonover's classic palette, light variant.
+# Pairs with chroma's "solarized-light" code style.
+
+description: Solarized Light — Ethan Schoonover's classic low-contrast palette.
+code-style: solarized-light
+
+styles:
+  name:    {color: "#268bd2", bold: true}     # blue
+  text:    {color: "#657b83"}                  # base00 (fg on light)
+  string:  {color: "#2aa198"}                  # cyan
+  number:  {color: "#d33682"}                  # magenta
+  boolean: {color: "#d33682"}
+  "null":  {color: "#93a1a1"}                  # base1 (muted on light)
+  syntax:  {color: "#586e75", bold: true}
+  code:    {color: "#6c71c4"}                  # violet
+  anchor:  {color: "#268bd2"}
+  comment: {color: "#93a1a1", faint: true}
+  title:   {color: "#586e75", bold: true}
+  columns: {bold: true}
+  rows:    {}
+  headings:
+    - {color: "#268bd2", bold: true}           # blue
+    - {color: "#268bd2", bold: true}
+    - {color: "#2aa198", bold: true}           # cyan
+    - {color: "#859900", bold: true}           # green
+    - {color: "#b58900"}                       # yellow
+    - {color: "#93a1a1", faint: true}
+
+border: normal
+indent: "  "

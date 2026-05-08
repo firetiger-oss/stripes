@@ -1,0 +1,35 @@
+# default — equivalent to stripes.DefaultStyles. This file is canonical for
+# users who want to fork the default look. It is also used as a fixture in
+# profile_test.go, which asserts ToStyles() matches DefaultStyles exactly.
+#
+# Colors are 256-color palette indices, passed straight through to lipgloss
+# (which renders them as the matching ANSI color or downgrades for older
+# terminals). The "null" key is quoted because YAML parses an unquoted
+# `null:` as the null tag rather than the string "null".
+
+description: Built-in default — neutral grayscale with bright-blue accents.
+
+styles:
+  name:    {color: "12", bold: true}
+  text:    {color: "7"}
+  string:  {color: "2"}
+  number:  {color: "7"}
+  boolean: {color: "7"}
+  "null":  {color: "8"}
+  syntax:  {color: "7", bold: true}
+  code:    {color: "183"}
+  anchor:  {color: "12"}
+  comment: {color: "8", faint: true}
+  title:   {color: "7", bold: true}
+  columns: {bold: true}
+  rows:    {}
+  headings:
+    - {color: "12", bold: true}  # H1
+    - {color: "12", bold: true}  # H2
+    - {color: "12", bold: true}  # H3
+    - {color: "4",  bold: true}  # H4
+    - {color: "4"}               # H5
+    - {color: "4",  faint: true} # H6
+
+border: normal
+indent: "  "
