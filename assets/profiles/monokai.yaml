@@ -1,0 +1,30 @@
+# monokai — the classic Sublime/TextMate palette.
+# Pairs with chroma's "monokai" code style.
+
+description: Monokai — the classic Sublime/TextMate dark palette.
+code-style: monokai
+
+styles:
+  name:    {color: "#a6e22e", bold: true}     # green — function/class names
+  text:    {color: "#f8f8f2"}                  # foreground
+  string:  {color: "#e6db74"}                  # yellow
+  number:  {color: "#ae81ff"}                  # purple
+  boolean: {color: "#ae81ff"}
+  "null":  {color: "#75715e"}                  # comment color
+  syntax:  {color: "#f8f8f2", bold: true}
+  code:    {color: "#f92672"}                  # pink
+  anchor:  {color: "#66d9ef"}                  # cyan
+  comment: {color: "#75715e", faint: true}
+  title:   {color: "#f8f8f2", bold: true}
+  columns: {bold: true}
+  rows:    {}
+  headings:
+    - {color: "#f92672", bold: true}           # pink
+    - {color: "#f92672", bold: true}
+    - {color: "#a6e22e", bold: true}           # green
+    - {color: "#66d9ef", bold: true}           # cyan
+    - {color: "#66d9ef"}
+    - {color: "#75715e", faint: true}
+
+border: normal
+indent: "  "

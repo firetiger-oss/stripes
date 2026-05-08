@@ -1,0 +1,30 @@
+# dracula — derived from the official Dracula palette (draculatheme.com).
+# Pairs with chroma's "dracula" code style.
+
+description: Dracula — popular dark theme with vivid pink/cyan accents.
+code-style: dracula
+
+styles:
+  name:    {color: "#8be9fd", bold: true}     # cyan — keys
+  text:    {color: "#f8f8f2"}                  # foreground
+  string:  {color: "#f1fa8c"}                  # yellow
+  number:  {color: "#bd93f9"}                  # purple
+  boolean: {color: "#bd93f9"}
+  "null":  {color: "#6272a4"}                  # muted
+  syntax:  {color: "#f8f8f2", bold: true}
+  code:    {color: "#ff79c6"}                  # pink
+  anchor:  {color: "#8be9fd"}
+  comment: {color: "#6272a4", faint: true}
+  title:   {color: "#f8f8f2", bold: true}
+  columns: {bold: true}
+  rows:    {}
+  headings:
+    - {color: "#ff79c6", bold: true}           # pink
+    - {color: "#ff79c6", bold: true}
+    - {color: "#bd93f9", bold: true}           # purple
+    - {color: "#8be9fd", bold: true}           # cyan
+    - {color: "#8be9fd"}
+    - {color: "#6272a4", faint: true}
+
+border: normal
+indent: "  "

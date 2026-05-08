@@ -36,6 +36,11 @@ Flags:
       --content-type string   Override MIME type (e.g. application/vnd.foo+json)
       --schema string         Schema URL (protobuf full name)
       --color string          always|never|auto (default auto)
+      --profile string        Color profile name or path. Bare names resolve
+                              against $XDG_CONFIG_HOME/stripes/profiles
+                              (~/.config/stripes/profiles) and the built-in
+                              set. A value containing "/" or ending in
+                              .yaml/.yml is loaded as a file directly.
   -w, --width int             Output width in columns. 0 (default) =
                               auto-detect from the terminal; falls back
                               to no wrap when stdout is not a TTY.
@@ -43,6 +48,7 @@ Flags:
                               Use "cat" to bypass paging on a TTY.
 
 Pager resolution: -p flag > $STRIPES_PAGER > $PAGER > "less -R"
+Profile resolution: --profile flag > $STRIPES_PROFILE > built-in default
 Color is auto-disabled when NO_COLOR is set or stdout is not a terminal.
 `
 
@@ -51,6 +57,7 @@ type config struct {
 	contentType string
 	schema      string
 	color       string
+	profile     string
 	width       int
 	pager       string
 }
@@ -87,6 +94,7 @@ func parseFlags(args []string) (*config, string, error) {
 	fs.StringVar(&cfg.contentType, "content-type", "", "override MIME type")
 	fs.StringVar(&cfg.schema, "schema", "", "schema URL (protobuf)")
 	fs.StringVar(&cfg.color, "color", "auto", "color mode")
+	fs.StringVar(&cfg.profile, "profile", "", "color profile name")
 	fs.IntVar(&cfg.width, "width", 0, "output width")
 	fs.IntVar(&cfg.width, "w", 0, "output width (shorthand)")
 	fs.StringVar(&cfg.pager, "pager", "", "pager command")
@@ -225,14 +233,34 @@ func resolveStyles(cfg *config) *stripes.Styles {
 		}
 	}
 
-	if enable {
-		lipgloss.SetColorProfile(termenv.TrueColor)
-		s := stripes.DefaultStyles.Clone()
-		s.Width = width
-		return s
+	if !enable {
+		lipgloss.SetColorProfile(termenv.Ascii)
+		return &stripes.Styles{Indent: "  ", Width: width}
 	}
-	lipgloss.SetColorProfile(termenv.Ascii)
-	return &stripes.Styles{Indent: "  ", Width: width}
+
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	s := loadStyles(cfg)
+	s.Width = width
+	return s
+}
+
+// loadStyles resolves the color profile selection (flag > env > built-in
+// default). Profile-loading errors are reported to stderr and we fall back
+// to DefaultStyles so a bad profile never bricks the CLI.
+func loadStyles(cfg *config) *stripes.Styles {
+	name := cfg.profile
+	if name == "" {
+		name = os.Getenv("STRIPES_PROFILE")
+	}
+	if name == "" {
+		return stripes.DefaultStyles.Clone()
+	}
+	prof, err := stripes.LoadProfile(name)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "stripes: %v; using built-in default\n", err)
+		return stripes.DefaultStyles.Clone()
+	}
+	return prof.ToStyles()
 }
 
 // openSink picks the output sink. If paging is active, it spawns the pager

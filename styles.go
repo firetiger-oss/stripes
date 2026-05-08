@@ -29,6 +29,11 @@ type Styles struct {
 	Border  lipgloss.Border
 	Indent  string
 	Width   int
+
+	// CodeStyle names the chroma style used for syntax highlighting in
+	// code blocks (see github.com/alecthomas/chroma/v2/styles). Empty
+	// falls back to "github-dark".
+	CodeStyle string
 }
 
 // Clone creates a copy of the Styles struct

@@ -1,0 +1,30 @@
+# gruvbox-light — light variant of Pavel Pertsev's gruvbox palette.
+# Pairs with chroma's "gruvbox-light" code style.
+
+description: Gruvbox Light — retro warm earth tones, light background.
+code-style: gruvbox-light
+
+styles:
+  name:    {color: "#076678", bold: true}     # blue
+  text:    {color: "#3c3836"}                  # fg1 (dark on light)
+  string:  {color: "#79740e"}                  # green
+  number:  {color: "#8f3f71"}                  # purple
+  boolean: {color: "#8f3f71"}
+  "null":  {color: "#928374"}                  # gray
+  syntax:  {color: "#3c3836", bold: true}
+  code:    {color: "#9d0006"}                  # red
+  anchor:  {color: "#076678"}
+  comment: {color: "#928374", faint: true}
+  title:   {color: "#282828", bold: true}
+  columns: {bold: true}
+  rows:    {}
+  headings:
+    - {color: "#9d0006", bold: true}
+    - {color: "#9d0006", bold: true}
+    - {color: "#b57614", bold: true}           # yellow
+    - {color: "#79740e", bold: true}           # green
+    - {color: "#427b58"}                       # aqua
+    - {color: "#928374", faint: true}
+
+border: normal
+indent: "  "

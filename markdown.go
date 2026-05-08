@@ -784,7 +784,7 @@ func renderCodeBlock(w io.Writer, src []byte, lang string, ctx *mdContext) {
 		var buf bytes.Buffer
 		iter, err := lex.Tokenise(nil, body+"\n")
 		if err == nil {
-			style := chromastyles.Get("github-dark")
+			style := chromastyles.Get(chromaStyleName(ctx.styles))
 			if style == nil {
 				style = chromastyles.Fallback
 			}
