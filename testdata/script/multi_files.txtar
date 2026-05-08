@@ -1,0 +1,18 @@
+# Multiple files: each is preceded by a centered labeled rule.
+exec stripes --color=never -p cat -w 40 a.json b.json
+cmp stdout expected.txt
+
+-- a.json --
+{"name":"alice"}
+-- b.json --
+{"name":"bob"}
+-- expected.txt --
+──────────────── a.json ────────────────
+{  
+  "name": "alice"
+}
+
+──────────────── b.json ────────────────
+{  
+  "name": "bob"
+}

@@ -87,10 +87,14 @@ go install github.com/firetiger-oss/stripes/cmd/stripes@latest
 
 ```
 $ stripes --help
-Usage: stripes [flags] [file]
+Usage: stripes [flags] [file...]
 
 Pretty-print structured data (JSON, YAML, XML, HTML, CSV, Dockerfile, markdown,
 protobuf, text, source code, wasm) with ANSI colors and optional paging.
+
+When multiple files are given, each is preceded by a centered rule
+(───── filename ─────) so the source is visible inline. --format,
+--content-type, and --schema apply to all of them.
 
 Flags:
   -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|text|code|protobuf|wasm|auto (default auto)
