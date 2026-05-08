@@ -69,6 +69,10 @@ func detectByExtension(name string) string {
 		return "text/markdown"
 	case ".txt":
 		return "text/plain"
+	case ".wasm":
+		return "application/wasm"
+	case ".wat", ".wast":
+		return "text/x-source-code; lang=wat"
 	}
 	if lex := chromalexers.Match(filepath.Base(name)); lex != nil {
 		return "text/x-source-code; lang=" + lex.Config().Name
@@ -77,6 +81,9 @@ func detectByExtension(name string) string {
 }
 
 func detectByContent(peek []byte) string {
+	if bytes.HasPrefix(peek, []byte{0x00, 'a', 's', 'm'}) {
+		return "application/wasm"
+	}
 	trimmed := bytes.TrimLeft(peek, " \t\r\n")
 	if len(trimmed) == 0 {
 		return ""

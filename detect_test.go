@@ -65,6 +65,13 @@ func TestDetect(t *testing.T) {
 		{"foo.go", "x", "text/x-source-code; lang=Go"},
 		{"foo.py", "x", "text/x-source-code; lang=Python"},
 		{"foo.rs", "x", "text/x-source-code; lang=Rust"},
+
+		// WebAssembly
+		{"foo.wasm", "x", "application/wasm"},
+		{"foo.wat", "x", "text/x-source-code; lang=wat"},
+		{"foo.wast", "x", "text/x-source-code; lang=wat"},
+		{"", "\x00asm\x01\x00\x00\x00", "application/wasm"},
+		{"unknown.bin", "\x00asm\x01\x00\x00\x00", "application/wasm"},
 	}
 
 	for _, tt := range tests {

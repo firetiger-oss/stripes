@@ -61,6 +61,8 @@ func Func(contentType, schemaURL string) Renderer {
 		return Markdown
 	case "text/x-source-code":
 		return Code(params["lang"])
+	case "application/wasm":
+		return Wasm
 	default:
 		if strings.HasPrefix(mediaType, "text/") {
 			return Text

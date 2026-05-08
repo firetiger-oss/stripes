@@ -23,35 +23,42 @@ func Code(lang string) Renderer {
 			fmt.Fprintf(w, "ERROR: %s\n", err)
 			return
 		}
-
-		lex := resolveLexer(lang, src)
-		color := stylesEmitANSI(styles)
-
-		if lex == nil || !color {
-			w.Write(bytes.TrimRight(src, "\n"))
-			return
-		}
-
-		iter, err := lex.Tokenise(nil, string(src))
-		if err != nil {
-			io.WriteString(w, strings.TrimRight(string(src), "\n"))
-			return
-		}
-		style := chromastyles.Get(chromaStyleName(styles))
-		if style == nil {
-			style = chromastyles.Fallback
-		}
-		fmtr := formatters.Get("terminal256")
-		if fmtr == nil {
-			fmtr = chroma.Formatter(formatters.Fallback)
-		}
-		var buf bytes.Buffer
-		if err := fmtr.Format(&buf, style, iter); err != nil {
-			io.WriteString(w, strings.TrimRight(string(src), "\n"))
-			return
-		}
-		io.WriteString(w, strings.TrimRight(buf.String(), "\n"))
+		highlightCode(w, src, lang, styles)
 	}
+}
+
+// highlightCode resolves a chroma lexer for src (preferring lang, falling
+// back to content-based detection) and writes a styled rendering to w. If
+// no lexer can be resolved or color output is disabled, src is written
+// verbatim with the trailing newline trimmed.
+func highlightCode(w io.Writer, src []byte, lang string, styles *Styles) {
+	lex := resolveLexer(lang, src)
+	color := stylesEmitANSI(styles)
+
+	if lex == nil || !color {
+		w.Write(bytes.TrimRight(src, "\n"))
+		return
+	}
+
+	iter, err := lex.Tokenise(nil, string(src))
+	if err != nil {
+		io.WriteString(w, strings.TrimRight(string(src), "\n"))
+		return
+	}
+	style := chromastyles.Get(chromaStyleName(styles))
+	if style == nil {
+		style = chromastyles.Fallback
+	}
+	fmtr := formatters.Get("terminal256")
+	if fmtr == nil {
+		fmtr = chroma.Formatter(formatters.Fallback)
+	}
+	var buf bytes.Buffer
+	if err := fmtr.Format(&buf, style, iter); err != nil {
+		io.WriteString(w, strings.TrimRight(string(src), "\n"))
+		return
+	}
+	io.WriteString(w, strings.TrimRight(buf.String(), "\n"))
 }
 
 func resolveLexer(lang string, src []byte) chroma.Lexer {
