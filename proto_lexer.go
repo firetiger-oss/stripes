@@ -5,9 +5,11 @@ import "github.com/alecthomas/chroma/v2"
 // protoLexer is an enhanced Protocol Buffer lexer used in place of
 // chroma's embedded lexers/embedded/protocol_buffer.xml. It adds
 // recognition of `syntax`, `edition`, `reserved`, `weak`, `public`,
-// and `stream` as keywords; treats `enum`/`service`/`group` like
-// `message` so the type name lands as NameClass; and treats `inf`/`nan`
-// as KeywordConstant.
+// and `stream` as keywords, and treats `inf`/`nan` as KeywordConstant.
+//
+// The type names following message/enum/service/extend/group are
+// emitted as Name (not NameClass) so the keyword alone carries the
+// visual weight — same convention as VS Code and GitHub's renderer.
 //
 // The lexer is constructed at package load. RegexLexer compiles its
 // rules lazily on first use and is safe for concurrent callers.
@@ -48,7 +50,7 @@ func protoLexerRules() chroma.Rules {
 			chroma.Default(chroma.Pop(1)),
 		},
 		"typename": {
-			{Pattern: `[a-zA-Z_]\w*`, Type: chroma.NameClass, Mutator: chroma.Pop(1)},
+			{Pattern: `[a-zA-Z_]\w*`, Type: chroma.Name, Mutator: chroma.Pop(1)},
 			chroma.Default(chroma.Pop(1)),
 		},
 	}

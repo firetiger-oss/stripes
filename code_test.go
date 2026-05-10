@@ -63,8 +63,10 @@ func TestCodeBogusLangFallsThrough(t *testing.T) {
 // - the dispatch in resolveLexer routes any of the proto aliases to it
 // - keywords absent from chroma's embedded lexer (syntax, reserved) are
 //   tagged as Keyword
-// - the type name following message/enum/service is NameClass (chroma's
-//   stock lexer demotes enum/service identifiers to plain Name)
+// - the type name following message/enum/service is plain Name so the
+//   keyword carries the visual weight alone (chroma's stock lexer
+//   tagged it NameClass for `message` only — inconsistent and visually
+//   noisy)
 func TestProtoLexerTokens(t *testing.T) {
 	for _, alias := range []string{"Protocol Buffer", "protobuf", "proto"} {
 		if got := resolveLexer(alias, nil); got != protoLexer {
@@ -103,9 +105,9 @@ service Greeter {}
 		"message":  chroma.KeywordDeclaration,
 		"enum":     chroma.KeywordDeclaration,
 		"service":  chroma.KeywordDeclaration,
-		"Foo":      chroma.NameClass,
-		"Color":    chroma.NameClass,
-		"Greeter":  chroma.NameClass,
+		"Foo":      chroma.Name,
+		"Color":    chroma.Name,
+		"Greeter":  chroma.Name,
 		"string":   chroma.KeywordType,
 	}
 	for v, wantType := range want {
