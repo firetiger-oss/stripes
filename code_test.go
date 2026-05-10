@@ -107,6 +107,7 @@ service Greeter {
 }
 message AllOfSchema {
   repeated Schema schemas = 1 [
+    (google.api.field_behavior) = REQUIRED,
     (buf.validate.field).repeated.min_items = 1
   ];
 }
@@ -146,15 +147,16 @@ message AllOfSchema {
 		"int32":              chroma.KeywordPseudo,
 		"COLOR_UNSPECIFIED":  chroma.Name, // SCREAMING_SNAKE stays plain
 		"NO_SIDE_EFFECTS":    chroma.Name,
-		"chaotic.auth.v1":    chroma.NameDecorator,
-		"google.protobuf.":   chroma.NameDecorator,
-		"Struct":             chroma.KeywordPseudo, // qualified-name leaf
-		"buf.validate.field": chroma.Name,          // no CamelCase leaf — stays plain
-		"repeated.min_items": chroma.Name,          // .repeated continues a path; lookbehind blocks the keyword match
-		"idempotency_level":  chroma.NameTag,       // option name
-		"google.api.http":    chroma.NameTag,       // parenthesised option name
-		"post":               chroma.NameTag,       // TextProto key
-		"body":               chroma.NameTag,
+		"chaotic.auth.v1":           chroma.NameDecorator,
+		"google.protobuf.":          chroma.NameDecorator,
+		"Struct":                    chroma.KeywordPseudo, // qualified-name leaf
+		"repeated.min_items":        chroma.Name,          // .repeated continues a path; lookbehind blocks the keyword match
+		"idempotency_level":         chroma.NameTag,       // bare option name
+		"google.api.http":           chroma.NameTag,       // parenthesised option in `option (...)`
+		"google.api.field_behavior": chroma.NameTag,       // parenthesised option in field-option `[...]`
+		"buf.validate.field":        chroma.NameTag,       // parenthesised extension reference, even nested in `[...]`
+		"post":                      chroma.NameTag,       // TextProto key
+		"body":                      chroma.NameTag,
 	}
 	for v, wantType := range want {
 		if got[v] != wantType {

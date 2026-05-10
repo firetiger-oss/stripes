@@ -25,10 +25,12 @@ import "github.com/alecthomas/chroma/v2"
 //     into a NameDecorator path prefix (purple in github-dark). Package
 //     names emit NameDecorator too, so package paths read in the same
 //     purple as imported type prefixes.
-//   - Option names following the "option" keyword (bare or parenthesized)
-//     and TextProto-style keys (the LHS of an "ident:" pair inside a
-//     {} option value) are tagged NameTag — github-dark green —
-//     visually distinct from the type and keyword colors.
+//   - Option names following the "option" keyword (bare), parenthesised
+//     option/extension references like `(google.api.http)` anywhere
+//     they appear (including inside field-option `[...]` blocks), and
+//     TextProto-style keys (the LHS of an "ident:" pair inside a {}
+//     option value) are tagged NameTag — github-dark green — visually
+//     distinct from the type and keyword colors.
 //
 // The lexer is constructed at package load. RegexLexer compiles its
 // rules lazily on first use and is safe for concurrent callers.
@@ -47,17 +49,22 @@ func protoLexerRules() chroma.Rules {
 			{Pattern: `[ \t\r\n]+`, Type: chroma.Text},
 			{Pattern: `//[^\n]*`, Type: chroma.CommentSingle},
 			{Pattern: `/\*(.|\n)*?\*/`, Type: chroma.CommentMultiline},
-			// `option <name>` and `option (<name>)` — colour the option
-			// name as NameTag (green) before the bare-keyword rule sees
-			// `option`.
-			{Pattern: `(option)(\s+)(\()([a-zA-Z_][\w.]*)(\))`, Type: chroma.ByGroups(chroma.Keyword, chroma.Text, chroma.Punctuation, chroma.NameTag, chroma.Punctuation)},
+			// Bare option name: `option idempotency_level`. Coloured as
+			// NameTag (green) before the bare-keyword rule sees `option`.
 			{Pattern: `(option)(\s+)([a-zA-Z_][\w.]*)`, Type: chroma.ByGroups(chroma.Keyword, chroma.Text, chroma.NameTag)},
 			// TextProto-style key inside option {}: `key:` becomes a
 			// NameTag. The colon only ever appears in proto IDL inside
 			// {}-shaped option values, so a global rule is safe.
 			{Pattern: `([a-zA-Z_]\w*)(\s*)(:)`, Type: chroma.ByGroups(chroma.NameTag, chroma.Text, chroma.Punctuation)},
+			// Parenthesised option / extension name. Anywhere `(name)`
+			// appears with a lowercase-first qualified identifier inside,
+			// it's an option name — both `option (google.api.http)` and
+			// field-option entries like `[(google.api.field_behavior) =
+			// REQUIRED]`. The leading `[a-z_]` stops this from
+			// swallowing CamelCase type references in `rpc Method(Request)`.
+			{Pattern: `(\()([a-z_][\w.]*)(\))`, Type: chroma.ByGroups(chroma.Punctuation, chroma.NameTag, chroma.Punctuation)},
 			{Pattern: `[,;{}\[\]()<>]`, Type: chroma.Punctuation},
-			{Pattern: `(?<!\.)\b(syntax|edition|import|weak|public|extensions|reserved|to|max|stream|returns|rpc|oneof|optional|repeated|default|packed|ctype)\b`, Type: chroma.Keyword},
+			{Pattern: `(?<!\.)\b(syntax|edition|import|weak|public|option|extensions|reserved|to|max|stream|returns|rpc|oneof|optional|repeated|default|packed|ctype)\b`, Type: chroma.Keyword},
 			{Pattern: `(?<!\.)\b(int32|int64|uint32|uint64|sint32|sint64|fixed32|fixed64|sfixed32|sfixed64|float|double|bool|string|bytes|map)\b`, Type: chroma.KeywordPseudo},
 			{Pattern: `(?<!\.)\b(true|false|inf|nan)\b`, Type: chroma.KeywordConstant},
 			{Pattern: `(package)(\s+)`, Type: chroma.ByGroups(chroma.KeywordNamespace, chroma.Text), Mutator: chroma.Push("package")},
