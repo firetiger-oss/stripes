@@ -64,17 +64,19 @@ func TestCodeBogusLangFallsThrough(t *testing.T) {
 //   - keywords absent from chroma's embedded lexer (syntax, reserved) are
 //     tagged as Keyword
 //   - "required" — proto2-only — is no longer a keyword
-//   - built-in scalar types emit KeywordPseudo (light blue) instead of
-//     KeywordType (which falls back to keyword red in github-dark)
-//   - the type name following message/enum/service is plain Name so the
-//     keyword carries the visual weight alone
-//   - qualified type references like google.protobuf.Struct split into
-//     a NameDecorator path prefix and a plain Name leaf
-//   - package paths emit NameDecorator so they read in the same purple
-//     as imported type prefixes
+//   - built-in scalar types and PascalCase user-defined types both emit
+//     KeywordPseudo (light blue), including the type name following
+//     message/enum/service/extend/group and the leaf of qualified
+//     references like google.protobuf.Struct. SCREAMING_SNAKE_CASE
+//     identifiers (typical proto enum values) stay plain.
+//   - qualified type references split into a NameDecorator path prefix
+//     and a KeywordPseudo leaf
+//   - package paths emit NameDecorator
 //   - the keyword regexes use a (?<!\.) lookbehind so dotted
 //     continuations like ".repeated.min_items" inside option paths
 //     don't accidentally hit a keyword match
+//   - option names (bare or parenthesized) and TextProto-style keys
+//     followed by ":" are tagged NameTag (green)
 func TestProtoLexerTokens(t *testing.T) {
 	for _, alias := range []string{"Protocol Buffer", "protobuf", "proto"} {
 		if got := resolveLexer(alias, nil); got != protoLexer {
@@ -88,12 +90,21 @@ message Foo {
   reserved 7;
   string name = 1;
   required int32 legacy = 2;
-  google.protobuf.Struct payload = 3;
+  ModelConfig model = 3;
+  google.protobuf.Struct payload = 4;
 }
 enum Color {
   COLOR_UNSPECIFIED = 0;
 }
-service Greeter {}
+service Greeter {
+  rpc GetAgent(GetAgentRequest) returns (GetAgentResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (google.api.http) = {
+      post: "/v1/agents"
+      body: "*"
+    };
+  }
+}
 message AllOfSchema {
   repeated Schema schemas = 1 [
     (buf.validate.field).repeated.min_items = 1
@@ -123,16 +134,27 @@ message AllOfSchema {
 		"message":            chroma.KeywordDeclaration,
 		"enum":               chroma.KeywordDeclaration,
 		"service":            chroma.KeywordDeclaration,
-		"Foo":                chroma.Name,
-		"Color":              chroma.Name,
-		"Greeter":            chroma.Name,
+		"Foo":                chroma.KeywordPseudo,
+		"Color":              chroma.KeywordPseudo,
+		"Greeter":            chroma.KeywordPseudo,
+		"ModelConfig":        chroma.KeywordPseudo, // user-defined PascalCase type
+		"Schema":             chroma.KeywordPseudo,
+		"GetAgent":           chroma.KeywordPseudo,
+		"GetAgentRequest":    chroma.KeywordPseudo,
+		"AllOfSchema":        chroma.KeywordPseudo,
 		"string":             chroma.KeywordPseudo,
 		"int32":              chroma.KeywordPseudo,
+		"COLOR_UNSPECIFIED":  chroma.Name, // SCREAMING_SNAKE stays plain
+		"NO_SIDE_EFFECTS":    chroma.Name,
 		"chaotic.auth.v1":    chroma.NameDecorator,
 		"google.protobuf.":   chroma.NameDecorator,
-		"Struct":             chroma.Name,
-		"buf.validate.field": chroma.Name, // no CamelCase leaf — stays plain
-		"repeated.min_items": chroma.Name, // .repeated continues a path; lookbehind blocks the keyword match
+		"Struct":             chroma.KeywordPseudo, // qualified-name leaf
+		"buf.validate.field": chroma.Name,          // no CamelCase leaf — stays plain
+		"repeated.min_items": chroma.Name,          // .repeated continues a path; lookbehind blocks the keyword match
+		"idempotency_level":  chroma.NameTag,       // option name
+		"google.api.http":    chroma.NameTag,       // parenthesised option name
+		"post":               chroma.NameTag,       // TextProto key
+		"body":               chroma.NameTag,
 	}
 	for v, wantType := range want {
 		if got[v] != wantType {
