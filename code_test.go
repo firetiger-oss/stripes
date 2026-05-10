@@ -60,13 +60,21 @@ func TestCodeBogusLangFallsThrough(t *testing.T) {
 }
 
 // TestProtoLexerTokens locks down the enhanced Protocol Buffer lexer:
-// - the dispatch in resolveLexer routes any of the proto aliases to it
-// - keywords absent from chroma's embedded lexer (syntax, reserved) are
-//   tagged as Keyword
-// - the type name following message/enum/service is plain Name so the
-//   keyword carries the visual weight alone (chroma's stock lexer
-//   tagged it NameClass for `message` only — inconsistent and visually
-//   noisy)
+//   - the dispatch in resolveLexer routes any of the proto aliases to it
+//   - keywords absent from chroma's embedded lexer (syntax, reserved) are
+//     tagged as Keyword
+//   - "required" — proto2-only — is no longer a keyword
+//   - built-in scalar types emit KeywordPseudo (light blue) instead of
+//     KeywordType (which falls back to keyword red in github-dark)
+//   - the type name following message/enum/service is plain Name so the
+//     keyword carries the visual weight alone
+//   - qualified type references like google.protobuf.Struct split into
+//     a NameDecorator path prefix and a plain Name leaf
+//   - package paths emit NameDecorator so they read in the same purple
+//     as imported type prefixes
+//   - the keyword regexes use a (?<!\.) lookbehind so dotted
+//     continuations like ".repeated.min_items" inside option paths
+//     don't accidentally hit a keyword match
 func TestProtoLexerTokens(t *testing.T) {
 	for _, alias := range []string{"Protocol Buffer", "protobuf", "proto"} {
 		if got := resolveLexer(alias, nil); got != protoLexer {
@@ -75,14 +83,22 @@ func TestProtoLexerTokens(t *testing.T) {
 	}
 
 	src := `syntax = "proto3";
+package chaotic.auth.v1;
 message Foo {
   reserved 7;
   string name = 1;
+  required int32 legacy = 2;
+  google.protobuf.Struct payload = 3;
 }
 enum Color {
   COLOR_UNSPECIFIED = 0;
 }
 service Greeter {}
+message AllOfSchema {
+  repeated Schema schemas = 1 [
+    (buf.validate.field).repeated.min_items = 1
+  ];
+}
 `
 	iter, err := protoLexer.Tokenise(nil, src)
 	if err != nil {
@@ -100,15 +116,23 @@ service Greeter {}
 	}
 
 	want := map[string]chroma.TokenType{
-		"syntax":   chroma.Keyword,
-		"reserved": chroma.Keyword,
-		"message":  chroma.KeywordDeclaration,
-		"enum":     chroma.KeywordDeclaration,
-		"service":  chroma.KeywordDeclaration,
-		"Foo":      chroma.Name,
-		"Color":    chroma.Name,
-		"Greeter":  chroma.Name,
-		"string":   chroma.KeywordType,
+		"syntax":             chroma.Keyword,
+		"reserved":           chroma.Keyword,
+		"repeated":           chroma.Keyword,
+		"required":           chroma.Name, // proto2-only, no longer special
+		"message":            chroma.KeywordDeclaration,
+		"enum":               chroma.KeywordDeclaration,
+		"service":            chroma.KeywordDeclaration,
+		"Foo":                chroma.Name,
+		"Color":              chroma.Name,
+		"Greeter":            chroma.Name,
+		"string":             chroma.KeywordPseudo,
+		"int32":              chroma.KeywordPseudo,
+		"chaotic.auth.v1":    chroma.NameDecorator,
+		"google.protobuf.":   chroma.NameDecorator,
+		"Struct":             chroma.Name,
+		"buf.validate.field": chroma.Name, // no CamelCase leaf — stays plain
+		"repeated.min_items": chroma.Name, // .repeated continues a path; lookbehind blocks the keyword match
 	}
 	for v, wantType := range want {
 		if got[v] != wantType {
