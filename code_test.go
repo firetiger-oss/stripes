@@ -128,25 +128,25 @@ message AllOfSchema {
 	}
 
 	want := map[string]chroma.TokenType{
-		"syntax":             chroma.Keyword,
-		"reserved":           chroma.Keyword,
-		"repeated":           chroma.Keyword,
-		"required":           chroma.Name, // proto2-only, no longer special
-		"message":            chroma.KeywordDeclaration,
-		"enum":               chroma.KeywordDeclaration,
-		"service":            chroma.KeywordDeclaration,
-		"Foo":                chroma.KeywordPseudo,
-		"Color":              chroma.KeywordPseudo,
-		"Greeter":            chroma.KeywordPseudo,
-		"ModelConfig":        chroma.KeywordPseudo, // user-defined PascalCase type
-		"Schema":             chroma.KeywordPseudo,
-		"GetAgent":           chroma.KeywordPseudo,
-		"GetAgentRequest":    chroma.KeywordPseudo,
-		"AllOfSchema":        chroma.KeywordPseudo,
-		"string":             chroma.KeywordPseudo,
-		"int32":              chroma.KeywordPseudo,
-		"COLOR_UNSPECIFIED":  chroma.Name, // SCREAMING_SNAKE stays plain
-		"NO_SIDE_EFFECTS":    chroma.Name,
+		"syntax":                    chroma.Keyword,
+		"reserved":                  chroma.Keyword,
+		"repeated":                  chroma.Keyword,
+		"required":                  chroma.Name, // proto2-only, no longer special
+		"message":                   chroma.KeywordDeclaration,
+		"enum":                      chroma.KeywordDeclaration,
+		"service":                   chroma.KeywordDeclaration,
+		"Foo":                       chroma.KeywordPseudo,
+		"Color":                     chroma.KeywordPseudo,
+		"Greeter":                   chroma.KeywordPseudo,
+		"ModelConfig":               chroma.KeywordPseudo, // user-defined PascalCase type
+		"Schema":                    chroma.KeywordPseudo,
+		"GetAgent":                  chroma.KeywordPseudo,
+		"GetAgentRequest":           chroma.KeywordPseudo,
+		"AllOfSchema":               chroma.KeywordPseudo,
+		"string":                    chroma.KeywordPseudo,
+		"int32":                     chroma.KeywordPseudo,
+		"COLOR_UNSPECIFIED":         chroma.Name, // SCREAMING_SNAKE stays plain
+		"NO_SIDE_EFFECTS":           chroma.Name,
 		"chaotic.auth.v1":           chroma.NameDecorator,
 		"google.protobuf.":          chroma.NameDecorator,
 		"Struct":                    chroma.KeywordPseudo, // qualified-name leaf
