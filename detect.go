@@ -2,6 +2,7 @@ package stripes
 
 import (
 	"bytes"
+	"mime"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -75,7 +76,7 @@ func detectByExtension(name string) string {
 		return "text/x-source-code; lang=wat"
 	}
 	if lex := chromalexers.Match(filepath.Base(name)); lex != nil {
-		return "text/x-source-code; lang=" + lex.Config().Name
+		return mime.FormatMediaType("text/x-source-code", map[string]string{"lang": lex.Config().Name})
 	}
 	return ""
 }

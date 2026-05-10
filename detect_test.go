@@ -1,6 +1,9 @@
 package stripes
 
-import "testing"
+import (
+	"mime"
+	"testing"
+)
 
 func TestDetect(t *testing.T) {
 	tests := []struct {
@@ -66,6 +69,11 @@ func TestDetect(t *testing.T) {
 		{"foo.py", "x", "text/x-source-code; lang=Python"},
 		{"foo.rs", "x", "text/x-source-code; lang=Rust"},
 
+		// chroma lexer names containing whitespace must be quoted so
+		// mime.ParseMediaType can recover them downstream.
+		{"foo.proto", "x", `text/x-source-code; lang="Protocol Buffer"`},
+		{"foo.lisp", "x", `text/x-source-code; lang="Common Lisp"`},
+
 		// WebAssembly
 		{"foo.wasm", "x", "application/wasm"},
 		{"foo.wat", "x", "text/x-source-code; lang=wat"},
@@ -79,6 +87,34 @@ func TestDetect(t *testing.T) {
 			got := Detect(tt.name, []byte(tt.peek))
 			if got != tt.want {
 				t.Errorf("Detect(%q, %q) = %q, want %q", tt.name, tt.peek, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestDetectMIMERoundTrip verifies that values returned by Detect parse
+// cleanly back through mime.ParseMediaType — the actual contract Func
+// relies on. A previous version concatenated lang=Protocol Buffer
+// unquoted, which broke mime parsing and silently fell back to chroma's
+// content-sniffing for every multi-word lexer name.
+func TestDetectMIMERoundTrip(t *testing.T) {
+	tests := []struct {
+		name     string
+		wantLang string
+	}{
+		{"foo.go", "Go"},
+		{"foo.proto", "Protocol Buffer"},
+		{"foo.lisp", "Common Lisp"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ct := Detect(tt.name, []byte("x"))
+			_, params, err := mime.ParseMediaType(ct)
+			if err != nil {
+				t.Fatalf("mime.ParseMediaType(%q) error: %v", ct, err)
+			}
+			if params["lang"] != tt.wantLang {
+				t.Fatalf("lang = %q, want %q (from %q)", params["lang"], tt.wantLang, ct)
 			}
 		})
 	}

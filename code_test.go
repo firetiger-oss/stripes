@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alecthomas/chroma/v2"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
@@ -55,5 +56,61 @@ func TestCodeBogusLangFallsThrough(t *testing.T) {
 	Code("not-a-real-lexer")(&buf, strings.NewReader(src), plain)
 	if got := buf.String(); !strings.Contains(got, "totally not source") {
 		t.Fatalf("output missing input: %q", got)
+	}
+}
+
+// TestProtoLexerTokens locks down the enhanced Protocol Buffer lexer:
+// - the dispatch in resolveLexer routes any of the proto aliases to it
+// - keywords absent from chroma's embedded lexer (syntax, reserved) are
+//   tagged as Keyword
+// - the type name following message/enum/service is NameClass (chroma's
+//   stock lexer demotes enum/service identifiers to plain Name)
+func TestProtoLexerTokens(t *testing.T) {
+	for _, alias := range []string{"Protocol Buffer", "protobuf", "proto"} {
+		if got := resolveLexer(alias, nil); got != protoLexer {
+			t.Fatalf("resolveLexer(%q) returned chroma's default lexer instead of protoLexer", alias)
+		}
+	}
+
+	src := `syntax = "proto3";
+message Foo {
+  reserved 7;
+  string name = 1;
+}
+enum Color {
+  COLOR_UNSPECIFIED = 0;
+}
+service Greeter {}
+`
+	iter, err := protoLexer.Tokenise(nil, src)
+	if err != nil {
+		t.Fatalf("tokenise: %v", err)
+	}
+	got := map[string]chroma.TokenType{}
+	for tok := iter(); tok != chroma.EOF; tok = iter() {
+		v := strings.TrimSpace(tok.Value)
+		if v == "" {
+			continue
+		}
+		if _, seen := got[v]; !seen {
+			got[v] = tok.Type
+		}
+	}
+
+	want := map[string]chroma.TokenType{
+		"syntax":   chroma.Keyword,
+		"reserved": chroma.Keyword,
+		"message":  chroma.KeywordDeclaration,
+		"enum":     chroma.KeywordDeclaration,
+		"service":  chroma.KeywordDeclaration,
+		"Foo":      chroma.NameClass,
+		"Color":    chroma.NameClass,
+		"Greeter":  chroma.NameClass,
+		"string":   chroma.KeywordType,
+	}
+	for v, wantType := range want {
+		if got[v] != wantType {
+			t.Errorf("token %q = %s, want %s", v, got[v], wantType)
+		}
 	}
 }
