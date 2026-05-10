@@ -63,6 +63,10 @@ func highlightCode(w io.Writer, src []byte, lang string, styles *Styles) {
 
 func resolveLexer(lang string, src []byte) chroma.Lexer {
 	if lang != "" {
+		switch strings.ToLower(lang) {
+		case "protocol buffer", "protobuf", "proto":
+			return protoLexer
+		}
 		if lex := chromalexers.Get(lang); lex != nil {
 			return lex
 		}

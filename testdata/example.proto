@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package example.v1;
+
+option go_package = "github.com/example/v1;examplev1";
+option java_multiple_files = true;
+option (custom.file_option) = "value";
+
+import "google/protobuf/timestamp.proto";
+import weak "deprecated/legacy.proto";
+import public "shared/types.proto";
+
+// Foo represents a foo.
+message Foo {
+  option (custom.message_option) = true;
+
+  string name = 1;
+  int32 count = 2;
+  repeated string tags = 3;
+  map<string, int32> counters = 4;
+  google.protobuf.Timestamp created_at = 5;
+
+  oneof kind {
+    string text = 6;
+    bytes data = 7;
+  }
+
+  reserved 8, 9;
+  reserved "old_field";
+}
+
+enum Color {
+  COLOR_UNSPECIFIED = 0;
+  COLOR_RED = 1 [deprecated = true];
+  COLOR_BLUE = 2;
+}
+
+service Greeter {
+  rpc SayHello(HelloRequest) returns (HelloResponse) {
+    option (custom.method_option) = "value";
+  }
+  rpc StreamGreetings(stream HelloRequest) returns (stream HelloResponse);
+}
