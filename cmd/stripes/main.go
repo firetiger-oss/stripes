@@ -431,8 +431,8 @@ type autoPagerSink struct {
 	line  bytes.Buffer // current incomplete line being measured
 	lines int          // completed lines so far
 
-	decided bool          // true once we've committed to a destination
-	out     io.Writer     // destination after decided == true
+	decided bool      // true once we've committed to a destination
+	out     io.Writer // destination after decided == true
 	pw      io.WriteCloser
 	cmd     *exec.Cmd
 }
