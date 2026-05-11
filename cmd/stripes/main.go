@@ -34,17 +34,18 @@ import (
 const usage = `Usage: stripes [flags] [file...]
 
 Pretty-print structured data (JSON, YAML, XML, HTML, CSV, Dockerfile, markdown,
-protobuf, text, source code, wasm) with ANSI colors and optional paging.
+protobuf, parquet, text, source code, wasm) with ANSI colors and optional paging.
 
 When multiple files are given, each is preceded by a centered rule
 (───── filename ─────) so the source is visible inline. --format,
 --content-type, and --schema apply to all of them.
 
 Flags:
-  -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|text|code|protobuf|wasm|table|auto (default auto)
-                              "table" routes CSV/TSV/JSONL through the
-                              new typed-table renderer with width-fitting
-                              and JSON-cell colorization.
+  -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|text|code|protobuf|parquet|wasm|table|auto (default auto)
+                              "table" routes CSV/TSV/JSONL/parquet through the
+                              new typed-table renderer with width-fitting,
+                              JSON-cell colorization, and (for parquet) schema-
+                              driven column formatting.
       --content-type string   Override MIME type (e.g. application/vnd.foo+json)
       --schema string         Schema URL (protobuf full name)
       --color string          always|never|auto (default auto)
@@ -139,7 +140,7 @@ func parseFlags(args []string) (*config, []string, error) {
 	}
 
 	switch cfg.format {
-	case "auto", "json", "yaml", "xml", "html", "csv", "dockerfile", "markdown", "text", "code", "protobuf", "wasm", "table":
+	case "auto", "json", "yaml", "xml", "html", "csv", "dockerfile", "markdown", "text", "code", "protobuf", "wasm", "parquet", "table":
 	default:
 		return nil, nil, fmt.Errorf("invalid --format %q", cfg.format)
 	}
@@ -281,6 +282,8 @@ func formatToContentType(format string) string {
 		return "application/protobuf"
 	case "wasm":
 		return "application/wasm"
+	case "parquet":
+		return "application/vnd.apache.parquet"
 	}
 	return ""
 }

@@ -72,6 +72,8 @@ func detectByExtension(name string) string {
 		return "text/plain"
 	case ".wasm":
 		return "application/wasm"
+	case ".parquet":
+		return "application/vnd.apache.parquet"
 	case ".wat", ".wast":
 		return "text/x-source-code; lang=wat"
 	}
@@ -84,6 +86,9 @@ func detectByExtension(name string) string {
 func detectByContent(peek []byte) string {
 	if bytes.HasPrefix(peek, []byte{0x00, 'a', 's', 'm'}) {
 		return "application/wasm"
+	}
+	if bytes.HasPrefix(peek, []byte("PAR1")) {
+		return "application/vnd.apache.parquet"
 	}
 	trimmed := bytes.TrimLeft(peek, " \t\r\n")
 	if len(trimmed) == 0 {

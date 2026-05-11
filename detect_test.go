@@ -80,6 +80,12 @@ func TestDetect(t *testing.T) {
 		{"foo.wast", "x", "text/x-source-code; lang=wat"},
 		{"", "\x00asm\x01\x00\x00\x00", "application/wasm"},
 		{"unknown.bin", "\x00asm\x01\x00\x00\x00", "application/wasm"},
+
+		// Parquet
+		{"foo.parquet", "x", "application/vnd.apache.parquet"},
+		{"data.PARQUET", "x", "application/vnd.apache.parquet"},
+		{"", "PAR1\x00\x00\x00", "application/vnd.apache.parquet"},
+		{"unknown.bin", "PAR1\x00\x00\x00", "application/vnd.apache.parquet"},
 	}
 
 	for _, tt := range tests {
