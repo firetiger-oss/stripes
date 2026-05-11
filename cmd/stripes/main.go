@@ -6,13 +6,16 @@
 //	stripes [flags] [file...]
 //
 // If no file is given, stripes reads from stdin. When multiple files are
-// given, they are rendered back to back, separated by a labeled rule. When
-// stdout is a terminal it pipes the styled output through a pager (less -R
-// by default). When stdout is not a terminal it writes directly.
+// given, they are rendered back to back, separated by a labeled rule. The
+// pager is selected by --paging: "auto" (default) spawns a pager only if
+// the rendered output is wider or taller than the terminal, or if more than
+// one file is being rendered; "always" forces the pager when stdout is a
+// terminal; "never" always writes directly to stdout.
 package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
@@ -45,6 +48,10 @@ Flags:
       --content-type string   Override MIME type (e.g. application/vnd.foo+json)
       --schema string         Schema URL (protobuf full name)
       --color string          always|never|auto (default auto)
+      --paging string         always|never|auto (default auto). In "auto",
+                              the pager is spawned only when the rendered
+                              output is wider or taller than the terminal,
+                              or when more than one file is rendered.
       --profile string        Color profile name or path. Bare names resolve
                               against $XDG_CONFIG_HOME/stripes/profiles
                               (~/.config/stripes/profiles) and the built-in
@@ -54,7 +61,7 @@ Flags:
                               auto-detect from the terminal; falls back
                               to no wrap when stdout is not a TTY.
   -p, --pager string          Pager command (e.g. "less -R", "bat --plain").
-                              Use "cat" to bypass paging on a TTY.
+                              Use --paging=never to bypass paging.
   -n, --line-numbers          Show line numbers in a left-aligned gutter.
 
 Pager resolution: -p flag > $STRIPES_PAGER > $PAGER > "less -R"
@@ -67,6 +74,7 @@ type config struct {
 	contentType string
 	schema      string
 	color       string
+	paging      string
 	profile     string
 	width       int
 	pager       string
@@ -94,7 +102,7 @@ func main() {
 }
 
 func parseFlags(args []string) (*config, []string, error) {
-	cfg := &config{format: "auto", color: "auto"}
+	cfg := &config{format: "auto", color: "auto", paging: "auto"}
 
 	fs := flag.NewFlagSet("stripes", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -105,6 +113,7 @@ func parseFlags(args []string) (*config, []string, error) {
 	fs.StringVar(&cfg.contentType, "content-type", "", "override MIME type")
 	fs.StringVar(&cfg.schema, "schema", "", "schema URL (protobuf)")
 	fs.StringVar(&cfg.color, "color", "auto", "color mode")
+	fs.StringVar(&cfg.paging, "paging", "auto", "paging mode")
 	fs.StringVar(&cfg.profile, "profile", "", "color profile name")
 	fs.IntVar(&cfg.width, "width", 0, "output width")
 	fs.IntVar(&cfg.width, "w", 0, "output width (shorthand)")
@@ -123,6 +132,12 @@ func parseFlags(args []string) (*config, []string, error) {
 		return nil, nil, fmt.Errorf("invalid --color %q (want auto|always|never)", cfg.color)
 	}
 
+	switch cfg.paging {
+	case "auto", "always", "never":
+	default:
+		return nil, nil, fmt.Errorf("invalid --paging %q (want auto|always|never)", cfg.paging)
+	}
+
 	switch cfg.format {
 	case "auto", "json", "yaml", "xml", "html", "csv", "dockerfile", "markdown", "text", "code", "protobuf", "wasm", "table":
 	default:
@@ -134,7 +149,7 @@ func parseFlags(args []string) (*config, []string, error) {
 
 func run(cfg *config, files []string) error {
 	styles := resolveStyles(cfg)
-	sink, finish := openSink(cfg)
+	sink, finish := openSink(cfg, len(files))
 
 	if len(files) == 0 {
 		renderOne(sink, "", os.Stdin, cfg, styles)
@@ -318,15 +333,49 @@ func loadStyles(cfg *config) *stripes.Styles {
 	return prof.ToStyles()
 }
 
-// openSink picks the output sink. If paging is active, it spawns the pager
-// and returns its stdin pipe; otherwise returns os.Stdout directly. The
-// returned finish func must be called after rendering completes; it closes
-// the pipe and waits for the pager.
-func openSink(cfg *config) (io.Writer, func() error) {
-	if !pagingActive() {
+// openSink picks the output sink based on the paging mode and how many
+// files are being rendered. The returned finish func must be called after
+// rendering completes; depending on the mode it flushes a buffer, closes a
+// pager pipe and waits, or is a no-op.
+func openSink(cfg *config, fileCount int) (io.Writer, func() error) {
+	switch determinePagingMode(cfg, fileCount) {
+	case "always":
+		return openEagerPagerSink(cfg)
+	case "auto":
+		return openAutoPagerSink(cfg)
+	default: // "none"
 		return os.Stdout, func() error { return nil }
 	}
+}
 
+// determinePagingMode returns one of "none", "always", "auto".
+//
+//   - "never"  → none.
+//   - "always" → always (even when stdout is not a TTY; users opt in
+//     explicitly).
+//   - "auto":
+//   - multiple files → always (rule 3).
+//   - stdout not a TTY → none (can't measure the terminal).
+//   - otherwise → auto, decided lazily by autoPagerSink.
+func determinePagingMode(cfg *config, fileCount int) string {
+	switch cfg.paging {
+	case "never":
+		return "none"
+	case "always":
+		return "always"
+	}
+	if fileCount > 1 {
+		return "always"
+	}
+	if !term.IsTerminal(int(os.Stdout.Fd())) {
+		return "none"
+	}
+	return "auto"
+}
+
+// openEagerPagerSink spawns the pager immediately and returns its stdin
+// pipe. On any failure it falls back to stdout with a stderr warning.
+func openEagerPagerSink(cfg *config) (io.Writer, func() error) {
 	spec := resolvePager(cfg)
 	args := strings.Fields(spec)
 	if len(args) == 0 {
@@ -352,14 +401,130 @@ func openSink(cfg *config) (io.Writer, func() error) {
 	return pw, finish
 }
 
-// pagingActive returns true when the pager should be spawned. A test-only
-// override (STRIPES_FORCE_PAGER) is honored so non-PTY testscript scenarios
-// can exercise the pager path.
-func pagingActive() bool {
-	if os.Getenv("STRIPES_FORCE_PAGER") == "1" {
-		return true
+// openAutoPagerSink returns a lazy sink that buffers output until either
+// the rendered width or line count exceeds the terminal, at which point it
+// transparently switches to the pager. If the threshold is never reached
+// (small output), the buffer is dumped to stdout at finish time.
+func openAutoPagerSink(cfg *config) (io.Writer, func() error) {
+	w, h, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || w <= 0 {
+		w = 80
 	}
-	return term.IsTerminal(int(os.Stdout.Fd()))
+	if err != nil || h <= 0 {
+		h = 24
+	}
+	s := &autoPagerSink{cfg: cfg, width: w, height: h}
+	return s, s.finish
+}
+
+// autoPagerSink decides whether to spawn the pager based on the rendered
+// content. Writes are accumulated in buf until any rendered line is wider
+// than width or the number of completed lines exceeds height. Once that
+// happens (or activatePager is invoked for any other reason) the buffer is
+// flushed to the pager pipe and subsequent writes pass through directly.
+type autoPagerSink struct {
+	cfg    *config
+	width  int
+	height int
+
+	buf   bytes.Buffer // pending bytes while the decision is still open
+	line  bytes.Buffer // current incomplete line being measured
+	lines int          // completed lines so far
+
+	decided bool          // true once we've committed to a destination
+	out     io.Writer     // destination after decided == true
+	pw      io.WriteCloser
+	cmd     *exec.Cmd
+}
+
+func (s *autoPagerSink) Write(p []byte) (int, error) {
+	if s.decided {
+		return s.out.Write(p)
+	}
+	s.buf.Write(p)
+	for _, b := range p {
+		s.line.WriteByte(b)
+		if b != '\n' {
+			continue
+		}
+		// Trim trailing newline so its zero width doesn't confuse the
+		// reader; ansi.StringWidth treats it as 0 anyway, but explicit
+		// is friendlier.
+		bs := s.line.Bytes()
+		if n := len(bs); n > 0 && bs[n-1] == '\n' {
+			bs = bs[:n-1]
+		}
+		if ansi.StringWidth(string(bs)) > s.width {
+			s.activatePager()
+			return len(p), nil
+		}
+		s.line.Reset()
+		s.lines++
+		if s.lines > s.height {
+			s.activatePager()
+			return len(p), nil
+		}
+	}
+	return len(p), nil
+}
+
+// activatePager commits the sink to paging: spawns the pager, replays the
+// buffer to it, and points out at the pipe so subsequent writes stream
+// through. On any failure it falls back to stdout with the usual warning.
+func (s *autoPagerSink) activatePager() {
+	spec := resolvePager(s.cfg)
+	args := strings.Fields(spec)
+	if len(args) == 0 {
+		s.fallbackToStdout()
+		return
+	}
+
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	pw, err := cmd.StdinPipe()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "stripes: pager pipe: %v; writing to stdout\n", err)
+		s.fallbackToStdout()
+		return
+	}
+	if err := cmd.Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "stripes: pager %q failed to start: %v; writing to stdout\n", spec, err)
+		s.fallbackToStdout()
+		return
+	}
+	if _, err := pw.Write(s.buf.Bytes()); err != nil {
+		fmt.Fprintf(os.Stderr, "stripes: pager write: %v; writing to stdout\n", err)
+		_ = pw.Close()
+		_ = cmd.Wait()
+		s.fallbackToStdout()
+		return
+	}
+	s.buf.Reset()
+	s.out = pw
+	s.pw = pw
+	s.cmd = cmd
+	s.decided = true
+}
+
+func (s *autoPagerSink) fallbackToStdout() {
+	_, _ = os.Stdout.Write(s.buf.Bytes())
+	s.buf.Reset()
+	s.out = os.Stdout
+	s.decided = true
+}
+
+func (s *autoPagerSink) finish() error {
+	if !s.decided {
+		_, err := os.Stdout.Write(s.buf.Bytes())
+		s.buf.Reset()
+		return err
+	}
+	if s.pw != nil {
+		_ = s.pw.Close()
+		return s.cmd.Wait()
+	}
+	return nil
 }
 
 func resolvePager(cfg *config) string {

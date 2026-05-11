@@ -1,10 +1,9 @@
 # -p flag overrides STRIPES_PAGER and PAGER env vars.
-env STRIPES_FORCE_PAGER=1
 env STRIPES_PAGER=should-not-run
 env PAGER=should-not-run-either
 env STUB_PAGER_LOG=$WORK/.pager.log
 
-exec stripes --color=never -p stub-pager input.json
+exec stripes --color=never --paging=always -p stub-pager input.json
 exists $WORK/.pager.log
 grep -count=1 '^argv: .*stub-pager$' $WORK/.pager.log
 

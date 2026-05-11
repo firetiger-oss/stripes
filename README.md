@@ -101,9 +101,13 @@ Flags:
       --content-type string   Override MIME type (e.g. application/vnd.foo+json)
       --schema string         Schema URL (protobuf full name)
       --color string          always|never|auto (default auto)
+      --paging string         always|never|auto (default auto). Auto only
+                              spawns the pager when the rendered output is
+                              wider or taller than the terminal, or when
+                              more than one file is rendered.
   -w, --width int             Output width (default: terminal width or 100)
   -p, --pager string          Pager command (e.g. "less -R", "bat --plain").
-                              Use "cat" to bypass paging on a TTY.
+                              Use --paging=never to bypass paging.
 
 Pager resolution: -p flag > $STRIPES_PAGER > $PAGER > "less -R"
 Color is auto-disabled when NO_COLOR is set or stdout is not a terminal.
@@ -112,8 +116,8 @@ Color is auto-disabled when NO_COLOR is set or stdout is not a terminal.
 ### Shell aliases
 
 ```sh
-alias scat='stripes'              # cat-like, with paging on a TTY
-alias spcat='stripes -p cat'      # always-stream, never page
+alias scat='stripes'                 # auto-paging: pages only when content overflows
+alias spcat='stripes --paging=never' # always-stream, never page
 ```
 
 ![stripes CLI screenshot](assets/screenshot.png)

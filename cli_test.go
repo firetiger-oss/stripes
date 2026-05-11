@@ -49,7 +49,6 @@ func TestCLI(t *testing.T) {
 			env.Setenv("NO_COLOR", "")
 			env.Setenv("PAGER", "")
 			env.Setenv("STRIPES_PAGER", "")
-			env.Setenv("STRIPES_FORCE_PAGER", "")
 			return nil
 		},
 	})
