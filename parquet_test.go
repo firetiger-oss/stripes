@@ -69,6 +69,37 @@ func TestParquetEmpty(t *testing.T) {
 	}
 }
 
+// TestParquetNestedJSON verifies that list/map cells render as compact
+// JSON, not Go's default `[1 2 3]` slice formatting.
+func TestParquetNestedJSON(t *testing.T) {
+	type ListRow struct {
+		Name   string   `parquet:"name"`
+		Tags   []int64  `parquet:"tags"`
+		Labels []string `parquet:"labels"`
+	}
+	rows := []ListRow{
+		{"alice", []int64{1, 2, 3}, []string{"admin", "ops"}},
+	}
+	var buf bytes.Buffer
+	w := parquet.NewGenericWriter[ListRow](&buf)
+	if _, err := w.Write(rows); err != nil {
+		t.Fatalf("write parquet: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("close parquet writer: %v", err)
+	}
+	out := runParquet(t, buf.Bytes())
+	for _, want := range []string{`[1,2,3]`, `["admin","ops"]`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("Parquet output missing %q\nfull output:\n%s", want, out)
+		}
+	}
+	// Make sure Go's default slice format didn't sneak through.
+	if strings.Contains(out, "[1 2 3]") {
+		t.Errorf("Parquet output contains Go-formatted slice [1 2 3], want JSON\nfull output:\n%s", out)
+	}
+}
+
 func TestParquetInvalid(t *testing.T) {
 	var out strings.Builder
 	Parquet(&out, strings.NewReader("not a parquet file"), DefaultStyles)

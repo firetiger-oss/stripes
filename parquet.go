@@ -2,6 +2,7 @@ package stripes
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strconv"
@@ -131,6 +132,13 @@ func stringifyParquetCell(v any) string {
 	case float32:
 		return strconv.FormatFloat(float64(x), 'g', -1, 32)
 	default:
+		// Slices, maps, and any other parquet-decoded shape render as
+		// compact JSON. Mirrors the typed-table package's jsonFormat
+		// fallback, so nested-list cells appear as [1,2,3] rather than
+		// Go's default "[1 2 3]" formatting.
+		if b, err := json.Marshal(x); err == nil {
+			return string(b)
+		}
 		return fmt.Sprintf("%v", x)
 	}
 }
