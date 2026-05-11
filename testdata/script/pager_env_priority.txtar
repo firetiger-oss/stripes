@@ -1,10 +1,9 @@
 # STRIPES_PAGER takes priority over PAGER.
-env STRIPES_FORCE_PAGER=1
 env STRIPES_PAGER=stub-pager
 env PAGER=should-not-run
 env STUB_PAGER_LOG=$WORK/.pager.log
 
-exec stripes --color=never input.json
+exec stripes --color=never --paging=always input.json
 exists $WORK/.pager.log
 grep -count=1 '^argv: .*stub-pager$' $WORK/.pager.log
 

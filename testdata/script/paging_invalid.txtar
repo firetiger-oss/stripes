@@ -1,0 +1,6 @@
+# --paging with an invalid value exits non-zero with a clear error.
+! exec stripes --paging=bogus input.json
+stderr 'invalid --paging "bogus"'
+
+-- input.json --
+{"hello":"world"}

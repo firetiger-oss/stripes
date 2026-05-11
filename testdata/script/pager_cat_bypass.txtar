@@ -1,7 +1,5 @@
-# `-p cat` with paging forced acts as a no-op pager: same output as direct.
-env STRIPES_FORCE_PAGER=1
-
-exec stripes --color=never -p cat input.json
+# `-p cat` with --paging=always acts as a no-op pager: same output as direct.
+exec stripes --color=never --paging=always -p cat input.json
 cmp stdout expected.txt
 
 -- input.json --

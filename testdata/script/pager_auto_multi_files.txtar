@@ -1,0 +1,13 @@
+# --paging=auto with multiple input files forces the pager (rule 3),
+# even when stdout is not a TTY.
+env STRIPES_PAGER=stub-pager
+env STUB_PAGER_LOG=$WORK/.pager.log
+
+exec stripes --color=never --paging=auto a.json b.json
+exists $WORK/.pager.log
+grep -count=1 '^argv: .*stub-pager$' $WORK/.pager.log
+
+-- a.json --
+{"a":1}
+-- b.json --
+{"b":2}
