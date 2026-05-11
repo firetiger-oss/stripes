@@ -8,9 +8,10 @@ import (
 	"github.com/firetiger-oss/stripes"
 )
 
-// detectRowFlavor picks one of csvTable / tsvTable / jsonlTable based on
-// the source filename's extension first, then a best-effort content sniff
-// of peek. Defaults to csvTable when neither signal is conclusive.
+// detectRowFlavor picks one of csvTable / tsvTable / jsonlTable /
+// parquetTable based on the source filename's extension first, then a
+// best-effort content sniff of peek. Defaults to csvTable when neither
+// signal is conclusive.
 func detectRowFlavor(name string, peek []byte) stripes.Renderer {
 	switch strings.ToLower(filepath.Ext(name)) {
 	case ".csv":
@@ -19,6 +20,12 @@ func detectRowFlavor(name string, peek []byte) stripes.Renderer {
 		return tsvTable
 	case ".jsonl", ".ndjson":
 		return jsonlTable
+	case ".parquet":
+		return parquetTable
+	}
+
+	if bytes.HasPrefix(peek, []byte("PAR1")) {
+		return parquetTable
 	}
 
 	trimmed := bytes.TrimLeft(peek, " \t\r\n")

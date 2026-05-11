@@ -8,9 +8,12 @@ import (
 	"io"
 	"iter"
 	"sort"
+	"time"
 
 	"github.com/firetiger-oss/stripes"
 	"github.com/firetiger-oss/stripes/table"
+	"github.com/parquet-go/parquet-go"
+	"github.com/parquet-go/parquet-go/format"
 )
 
 // csvTable renders CSV input as a styled table via the table sub-package.
@@ -121,4 +124,158 @@ func jsonlTable(w io.Writer, r io.Reader, styles *stripes.Styles) {
 	); err != nil {
 		io.WriteString(w, "Error rendering JSONL table: "+err.Error())
 	}
+}
+
+// parquetTable renders a parquet file as a typed-table view. The parquet
+// schema drives column formatting: TIMESTAMP columns surface as time.Time
+// (rendered as time.DateTime), DATE as midnight time.Time, and primitives
+// pass through as their natural Go types. The table sub-package then
+// dispatches per-cell via anyCellFormatter.
+//
+// Parquet requires random access, so the entire input is buffered.
+func parquetTable(w io.Writer, r io.Reader, styles *stripes.Styles) {
+	buf, err := io.ReadAll(r)
+	if err != nil {
+		io.WriteString(w, "Error reading Parquet: "+err.Error())
+		return
+	}
+	if len(buf) == 0 {
+		io.WriteString(w, "Empty Parquet")
+		return
+	}
+
+	pf, err := parquet.OpenFile(bytes.NewReader(buf), int64(len(buf)))
+	if err != nil {
+		io.WriteString(w, "Error reading Parquet: "+err.Error())
+		return
+	}
+	reader := parquet.NewReader(pf)
+	defer reader.Close()
+
+	fields := reader.Schema().Fields()
+	headers := make([]string, len(fields))
+	converters := make([]parquetCellConverter, len(fields))
+	for i, f := range fields {
+		headers[i] = f.Name()
+		converters[i] = converterFor(f)
+	}
+
+	var rows [][]any
+	for {
+		raw := make(map[string]any, len(headers))
+		if err := reader.Read(&raw); err == io.EOF {
+			break
+		} else if err != nil {
+			io.WriteString(w, "Error reading Parquet: "+err.Error())
+			return
+		}
+		row := make([]any, len(headers))
+		for i, name := range headers {
+			row[i] = converters[i](raw[name])
+		}
+		rows = append(rows, row)
+	}
+
+	if len(rows) == 0 {
+		io.WriteString(w, "Empty Parquet")
+		return
+	}
+
+	seq := iter.Seq2[[]any, error](func(yield func([]any, error) bool) {
+		for _, row := range rows {
+			if !yield(row, nil) {
+				return
+			}
+		}
+	})
+	if err := table.Write[[]any](w, seq,
+		table.WithHeaders(headers...),
+		table.WithStyles(styles),
+	); err != nil {
+		io.WriteString(w, "Error rendering Parquet table: "+err.Error())
+	}
+}
+
+// parquetCellConverter turns a raw value decoded by parquet.Reader into the
+// natural Go type for the column. For example, parquet TIMESTAMP_MILLIS
+// arrives as int64 and is converted to time.Time so the table package's
+// time formatter takes over.
+type parquetCellConverter func(any) any
+
+func converterFor(f parquet.Field) parquetCellConverter {
+	// Group / repeated nodes: surface as-is (the table package's
+	// isJSONFallbackType path renders maps and slices as colorized JSON).
+	if !f.Leaf() {
+		return identityConverter
+	}
+	lt := f.Type().LogicalType()
+	if lt != nil {
+		switch {
+		case lt.Timestamp != nil:
+			return timestampConverter(lt.Timestamp)
+		case lt.Date != nil:
+			return dateConverter
+		case lt.UTF8 != nil, lt.Enum != nil, lt.Json != nil:
+			return bytesToStringConverter
+		case lt.UUID != nil, lt.Bson != nil:
+			return identityConverter
+		}
+	}
+	switch f.Type().Kind() {
+	case parquet.ByteArray, parquet.FixedLenByteArray:
+		// Raw binary without a logical type — leave as []byte so the
+		// table package's JSON fallback renders it readably.
+		return identityConverter
+	}
+	return identityConverter
+}
+
+func identityConverter(v any) any { return v }
+
+func bytesToStringConverter(v any) any {
+	if b, ok := v.([]byte); ok {
+		return string(b)
+	}
+	return v
+}
+
+func timestampConverter(ts *format.TimestampType) parquetCellConverter {
+	// parquet-go re-exports format.TimestampType; the value is whole units
+	// of millis / micros / nanos since the Unix epoch as int64.
+	switch {
+	case ts.Unit.Millis != nil:
+		return func(v any) any {
+			if i, ok := v.(int64); ok {
+				return time.UnixMilli(i).UTC()
+			}
+			return v
+		}
+	case ts.Unit.Micros != nil:
+		return func(v any) any {
+			if i, ok := v.(int64); ok {
+				return time.UnixMicro(i).UTC()
+			}
+			return v
+		}
+	case ts.Unit.Nanos != nil:
+		return func(v any) any {
+			if i, ok := v.(int64); ok {
+				return time.Unix(0, i).UTC()
+			}
+			return v
+		}
+	}
+	return identityConverter
+}
+
+// dateConverter turns parquet's DATE (days since 1970-01-01 as int32) into
+// a UTC midnight time.Time.
+func dateConverter(v any) any {
+	switch x := v.(type) {
+	case int32:
+		return time.Unix(int64(x)*86400, 0).UTC()
+	case int64:
+		return time.Unix(x*86400, 0).UTC()
+	}
+	return v
 }

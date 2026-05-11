@@ -63,6 +63,8 @@ func Func(contentType, schemaURL string) Renderer {
 		return Code(params["lang"])
 	case "application/wasm":
 		return Wasm
+	case "application/vnd.apache.parquet":
+		return Parquet
 	default:
 		if strings.HasPrefix(mediaType, "text/") {
 			return Text

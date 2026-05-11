@@ -157,6 +157,8 @@ func TestDetectRowFlavorByExtension(t *testing.T) {
 		{"data.tab", "tsvTable"},
 		{"data.jsonl", "jsonlTable"},
 		{"data.ndjson", "jsonlTable"},
+		{"data.parquet", "parquetTable"},
+		{"data.PARQUET", "parquetTable"},
 	}
 	for _, c := range cases {
 		got := detectRowFlavor(c.name, nil)
@@ -175,6 +177,7 @@ func TestDetectRowFlavorBySniff(t *testing.T) {
 		{"a,b,c\n1,2,3\n", "csvTable"},
 		{"a\tb\tc\n1\t2\t3\n", "tsvTable"},
 		{"{\"a\":1}\n{\"a\":2}\n", "jsonlTable"},
+		{"PAR1\x00", "parquetTable"},
 		{"", "csvTable"},
 		{"   ", "csvTable"},
 		// Single JSON object spanning lines must NOT be jsonl-detected.
@@ -197,6 +200,8 @@ func rendererName(r stripes.Renderer) string {
 		return "tsvTable"
 	case reflect.ValueOf(stripes.Renderer(jsonlTable)).Pointer():
 		return "jsonlTable"
+	case reflect.ValueOf(stripes.Renderer(parquetTable)).Pointer():
+		return "parquetTable"
 	}
 	return "unknown"
 }
