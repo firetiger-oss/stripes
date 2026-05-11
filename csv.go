@@ -40,7 +40,7 @@ func printCSV(w io.Writer, r io.Reader, maxWidth int, styles *Styles) {
 		numeric := 0
 		totalDataRows := len(records) - 1 // Exclude header row
 		for row := 1; row < len(records); row++ {
-			if col < len(records[row]) && isNumeric(records[row][col]) {
+			if col < len(records[row]) && IsNumeric(records[row][col]) {
 				numeric++
 			}
 		}

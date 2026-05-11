@@ -1,0 +1,13 @@
+# CSV rendered as a table; column headers and rows present.
+exec stripes --color=never -p cat input.csv
+stdout 'Name'
+stdout 'Age'
+stdout 'City'
+stdout 'Alice'
+stdout 'Bob'
+stdout 'NYC'
+
+-- input.csv --
+Name,Age,City
+Alice,30,NYC
+Bob,25,LA

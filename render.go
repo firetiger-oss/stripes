@@ -20,7 +20,12 @@ func isNumber(s string) bool {
 	return false
 }
 
-func isNumeric(s string) bool {
+// IsNumeric reports whether s looks like a number — optionally signed,
+// with `.` or `,` as decimals, scientific notation, and a recognised unit
+// suffix (`%`, time units, byte sizes, SI prefixes, `kg`). Empty strings
+// are treated as numeric (a placeholder for missing values), so callers
+// that care about presence must check separately.
+func IsNumeric(s string) bool {
 	if s == "" {
 		return true
 	}

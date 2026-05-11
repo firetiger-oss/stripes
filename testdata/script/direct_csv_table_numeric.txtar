@@ -1,0 +1,12 @@
+# Numeric columns in CSV --format table get right-aligned via content sniff.
+exec stripes --color=never -p cat --format table input.csv
+# "Quantity" header is 8 chars; "100" right-aligned → 5 leading spaces.
+stdout '     100'
+stdout '      75'
+stdout 'Product'
+stdout 'Widget'
+
+-- input.csv --
+Product,Price,Quantity
+Widget,19.99,100
+Gadget,25.50,75

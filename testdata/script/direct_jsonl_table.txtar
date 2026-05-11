@@ -1,0 +1,14 @@
+# --format table on a .jsonl file: detector picks the JSONL renderer.
+# Keys are sorted (age before name), missing keys render as empty.
+exec stripes --color=never -p cat --format table input.jsonl
+stdout 'name'
+stdout 'age'
+stdout 'alice'
+stdout '30'
+stdout 'bob'
+stdout 'role'
+stdout 'viewer'
+
+-- input.jsonl --
+{"name":"alice","age":30}
+{"name":"bob","age":25,"role":"viewer"}

@@ -38,7 +38,10 @@ When multiple files are given, each is preceded by a centered rule
 --content-type, and --schema apply to all of them.
 
 Flags:
-  -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|text|code|protobuf|wasm|auto (default auto)
+  -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|text|code|protobuf|wasm|table|auto (default auto)
+                              "table" routes CSV/TSV/JSONL through the
+                              new typed-table renderer with width-fitting
+                              and JSON-cell colorization.
       --content-type string   Override MIME type (e.g. application/vnd.foo+json)
       --schema string         Schema URL (protobuf full name)
       --color string          always|never|auto (default auto)
@@ -121,7 +124,7 @@ func parseFlags(args []string) (*config, []string, error) {
 	}
 
 	switch cfg.format {
-	case "auto", "json", "yaml", "xml", "html", "csv", "dockerfile", "markdown", "text", "code", "protobuf", "wasm":
+	case "auto", "json", "yaml", "xml", "html", "csv", "dockerfile", "markdown", "text", "code", "protobuf", "wasm", "table":
 	default:
 		return nil, nil, fmt.Errorf("invalid --format %q", cfg.format)
 	}
@@ -161,6 +164,20 @@ func run(cfg *config, files []string) error {
 func renderOne(sink io.Writer, name string, input io.Reader, cfg *config, styles *stripes.Styles) {
 	br := bufio.NewReader(input)
 	peek, _ := br.Peek(512)
+
+	// --format table short-circuits the content-type dispatch entirely:
+	// it routes row-oriented inputs (CSV/TSV/JSONL) through a dedicated
+	// renderer that uses the typed table sub-package.
+	if cfg.format == "table" {
+		renderer := detectRowFlavor(name, peek)
+		if cfg.lineNumbers {
+			renderer = stripes.WithLineNumbers(renderer)
+		}
+		tw := &trailingNewlineWriter{w: sink}
+		renderer(tw, br, styles)
+		tw.flush()
+		return
+	}
 
 	contentType := cfg.contentType
 	if contentType == "" {
