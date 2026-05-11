@@ -1,0 +1,12 @@
+# Filename extension drives CSV format selection (content alone would
+# not sniff as CSV — only .csv extension picks the renderer).
+exec stripes --color=never -p cat input.csv
+stdout 'Product'
+stdout 'Price'
+stdout 'Widget'
+stdout '19\.99'
+
+-- input.csv --
+Product,Price,Quantity
+Widget,19.99,100
+Gadget,25.50,75

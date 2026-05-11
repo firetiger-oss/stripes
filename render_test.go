@@ -81,9 +81,9 @@ func TestIsNumeric(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result := isNumeric(tt.input)
+			result := IsNumeric(tt.input)
 			if result != tt.expected {
-				t.Errorf("isNumeric(%q) = %v, expected %v", tt.input, result, tt.expected)
+				t.Errorf("IsNumeric(%q) = %v, expected %v", tt.input, result, tt.expected)
 			}
 		})
 	}

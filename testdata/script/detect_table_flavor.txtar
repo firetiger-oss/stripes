@@ -1,0 +1,27 @@
+# --format table with stdin: sniffer picks the right flavor for each.
+stdin csv.txt
+exec stripes --color=never -p cat --format table
+stdout 'alice'
+stdout 'nyc'
+
+stdin tsv.txt
+exec stripes --color=never -p cat --format table
+stdout 'alice'
+stdout 'admin'
+
+stdin jsonl.txt
+exec stripes --color=never -p cat --format table
+stdout 'alice'
+stdout '30'
+
+-- csv.txt --
+name,city
+alice,nyc
+bob,la
+-- tsv.txt --
+name	role
+alice	admin
+bob	viewer
+-- jsonl.txt --
+{"name":"alice","age":30}
+{"name":"bob","age":25}

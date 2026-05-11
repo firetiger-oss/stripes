@@ -1,0 +1,11 @@
+# --format table on a .tsv file: detector picks the TSV renderer.
+exec stripes --color=never -p cat --format table input.tsv
+stdout 'name'
+stdout 'role'
+stdout 'alice'
+stdout 'admin'
+
+-- input.tsv --
+name	role	city
+alice	admin	nyc
+bob	viewer	la

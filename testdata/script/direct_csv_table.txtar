@@ -1,0 +1,12 @@
+# --format table for CSV: routes through the new typed-table renderer.
+exec stripes --color=never -p cat --format table input.csv
+stdout 'name'
+stdout 'age'
+stdout 'alice'
+stdout '30'
+stdout 'bob'
+
+-- input.csv --
+name,age,city
+alice,30,nyc
+bob,25,la
