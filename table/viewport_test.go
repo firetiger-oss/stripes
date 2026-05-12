@@ -46,10 +46,11 @@ func TestRowSelectorMarksMatchingRow(t *testing.T) {
 	equal(t, got, want)
 }
 
-func TestRowSelectorMultipleSelectorsOR(t *testing.T) {
+func TestRowSelectorComposedOR(t *testing.T) {
+	// Caller composes OR inside the predicate — there's no second selector
+	// slot in the API.
 	got := render(vpRows(3),
-		WithRowSelector(func(row int) bool { return row == 0 }),
-		WithRowSelector(func(row int) bool { return row == 2 }),
+		WithRowSelector(func(row int) bool { return row == 0 || row == 2 }),
 	)
 	want := " NAME  AGE\n" +
 		"❯row0    0\n" +

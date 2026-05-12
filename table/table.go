@@ -75,15 +75,15 @@ type Options struct {
 	// row index (the header row is not counted).
 	RowStyle func(row int) lipgloss.Style
 
-	// RowSelectors holds the predicates passed to WithRowSelector. When
-	// non-empty, the renderer draws a one-cell gutter on the left: rows
-	// for which any selector returns true render SelectedIndicator,
-	// other rows and the header render a single space. The `row`
-	// argument is the absolute row index (unaffected by ViewportTop).
-	RowSelectors []func(row int) bool
+	// RowSelector, when non-nil, draws a one-cell gutter on the left:
+	// rows for which the predicate returns true render
+	// SelectedIndicator, other rows and the header render a single
+	// space. The `row` argument is the absolute row index (unaffected
+	// by ViewportTop).
+	RowSelector func(row int) bool
 
 	// SelectedIndicator is the gutter glyph drawn for rows matched by
-	// any RowSelector. Empty means use the package default ("❯").
+	// RowSelector. Empty means use the package default ("❯").
 	SelectedIndicator string
 
 	// ViewportHeight, when > 0, restricts rendering to that many rows
@@ -177,21 +177,21 @@ func WithRowStyle(fn func(row int) lipgloss.Style) Option {
 	return func(o *Options) { o.RowStyle = fn }
 }
 
-// WithRowSelector adds a row-selection predicate. May be called multiple
-// times — a row matches if ANY selector returns true. Setting any selector
-// enables the one-cell left gutter: matching rows render the indicator
-// (default "❯", overridable via WithSelectedIndicator), the header and
-// non-matching rows render a single space.
+// WithRowSelector sets the row-selection predicate. When non-nil it enables
+// the one-cell left gutter: matching rows render the indicator (default
+// "❯", overridable via WithSelectedIndicator), the header and non-matching
+// rows render a single space.
 //
 // The `row` argument is the absolute index into the input sequence,
-// unaffected by WithViewport's top offset.
+// unaffected by WithViewport's top offset. Compose multiple conditions
+// inside the predicate when needed.
 func WithRowSelector(fn func(row int) bool) Option {
 	return func(o *Options) {
-		o.RowSelectors = append(o.RowSelectors, fn)
+		o.RowSelector = fn
 	}
 }
 
-// WithSelectedIndicator sets the gutter glyph for rows matched by any
+// WithSelectedIndicator sets the gutter glyph for rows matched by the
 // WithRowSelector predicate. Defaults to "❯". Must be a single visual cell
 // (e.g. "❯", "▶", "→"); multi-cell strings will misalign columns.
 func WithSelectedIndicator(s string) Option {

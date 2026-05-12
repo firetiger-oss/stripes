@@ -21,7 +21,7 @@ const (
 // clamped value computed by render(). When neither feature is in use the
 // output is returned unchanged.
 func decorate(rendered string, totalRows int, viewportTop int, opts *Options) string {
-	hasSelector := len(opts.RowSelectors) > 0
+	hasSelector := opts.RowSelector != nil
 	height := opts.ViewportHeight
 	hasScrollbar := height > 0 && totalRows > height
 	if !hasSelector && !hasScrollbar {
@@ -48,7 +48,7 @@ func decorate(rendered string, totalRows int, viewportTop int, opts *Options) st
 		if hasSelector {
 			if i == 0 {
 				b.WriteByte(' ')
-			} else if rowMatches(viewportTop+i-1, opts.RowSelectors) {
+			} else if opts.RowSelector(viewportTop + i - 1) {
 				b.WriteString(indicator)
 			} else {
 				b.WriteByte(' ')
@@ -66,15 +66,6 @@ func decorate(rendered string, totalRows int, viewportTop int, opts *Options) st
 		}
 	}
 	return b.String()
-}
-
-func rowMatches(row int, selectors []func(int) bool) bool {
-	for _, fn := range selectors {
-		if fn(row) {
-			return true
-		}
-	}
-	return false
 }
 
 // scrollbarThumbBounds returns the [start, start+size) range (in
