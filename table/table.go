@@ -108,8 +108,9 @@ type Column struct {
 	Header string
 
 	// Modifier optionally pins a formatter, mirroring the struct-tag
-	// modifiers: "bytes", "count", "%", "%%", or "" to use the element type's
-	// default formatter.
+	// modifiers: "bytes", "count", "{min}-{max}%" (e.g. "0-100%" identity,
+	// "0-1%" ratio-to-percent), or "" to use the element type's default
+	// formatter.
 	Modifier string
 
 	// Suffix is appended to every non-empty formatted cell, mirroring the
