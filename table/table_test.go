@@ -209,6 +209,40 @@ func TestRenderTagBytesEmptyHeader(t *testing.T) {
 	equal(t, got, want)
 }
 
+func TestRenderTagCount(t *testing.T) {
+	type Row struct {
+		Endpoint string
+		Reqs     int64 `table:"REQS,count"`
+	}
+	got := render([]Row{
+		{Endpoint: "small", Reqs: 500},
+		{Endpoint: "medium", Reqs: 1500},
+		{Endpoint: "large", Reqs: 1_500_000},
+	})
+	want := "ENDPOINT  REQS \n" +
+		"small       500\n" +
+		"medium    1.5 K\n" +
+		"large     1.5 M"
+	equal(t, got, want)
+}
+
+func TestRenderTagCountEmptyHeader(t *testing.T) {
+	type Row struct {
+		Reqs int64 `table:",count"`
+	}
+	got := render([]Row{{Reqs: 1500}})
+	want := "REQS \n1.5 K"
+	equal(t, got, want)
+}
+
+func TestRenderTagCountRejectsFloat(t *testing.T) {
+	type Row struct {
+		Reqs float64 `table:",count"`
+	}
+	_, err := renderWrite([]Row{{Reqs: 1.5}})
+	equalErr(t, err, "field Reqs: 'count' modifier requires int or uint, got float64")
+}
+
 func TestRenderTagPercent(t *testing.T) {
 	type Row struct {
 		Ratio float64 `table:"RATIO,percent"`
