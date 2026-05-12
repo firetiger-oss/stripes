@@ -193,10 +193,10 @@ func TestRenderTagBytes(t *testing.T) {
 		{File: "medium", Size: 3584},   // 3.5 KiB
 		{File: "large", Size: 1048576}, // 1.0 MiB
 	})
-	want := "FILE    SIZE   \n" +
-		"small     128 B\n" +
-		"medium  3.5 KiB\n" +
-		"large   1.0 MiB"
+	want := "FILE    SIZE  \n" +
+		"small     128B\n" +
+		"medium  3.5KiB\n" +
+		"large   1.0MiB"
 	equal(t, got, want)
 }
 
@@ -205,7 +205,7 @@ func TestRenderTagBytesEmptyHeader(t *testing.T) {
 		Size int64 `table:",bytes"`
 	}
 	got := render([]Row{{Size: 2048}})
-	want := "SIZE   \n2.0 KiB"
+	want := "SIZE  \n2.0KiB"
 	equal(t, got, want)
 }
 
@@ -219,10 +219,10 @@ func TestRenderTagCount(t *testing.T) {
 		{Endpoint: "medium", Reqs: 1500},
 		{Endpoint: "large", Reqs: 1_500_000},
 	})
-	want := "ENDPOINT  REQS \n" +
-		"small       500\n" +
-		"medium    1.5 K\n" +
-		"large     1.5 M"
+	want := "ENDPOINT  REQS\n" +
+		"small      500\n" +
+		"medium    1.5K\n" +
+		"large     1.5M"
 	equal(t, got, want)
 }
 
@@ -231,8 +231,38 @@ func TestRenderTagCountEmptyHeader(t *testing.T) {
 		Reqs int64 `table:",count"`
 	}
 	got := render([]Row{{Reqs: 1500}})
-	want := "REQS \n1.5 K"
+	want := "REQS\n1.5K"
 	equal(t, got, want)
+}
+
+func TestRenderTagCountWithSuffix(t *testing.T) {
+	type Row struct {
+		RequestRate float64 `table:"RATE,, req/s"`
+		Throughput  uint64  `table:"THROUGHPUT,count,/s"`
+	}
+	got := render([]Row{
+		{RequestRate: 12.5, Throughput: 1_500_000},
+		{RequestRate: 1.0, Throughput: 500},
+	})
+	want := "RATE        THROUGHPUT\n12.5 req/s      1.5M/s\n   1 req/s       500/s"
+	equal(t, got, want)
+}
+
+func TestRenderTagSuffixOnly(t *testing.T) {
+	type Row struct {
+		Lat float64 `table:"LAT,,ms"`
+	}
+	got := render([]Row{{Lat: 12.5}, {Lat: 0.75}})
+	want := "LAT   \n12.5ms\n0.75ms"
+	equal(t, got, want)
+}
+
+func TestRenderTagTooManyModifiers(t *testing.T) {
+	type Row struct {
+		X int `table:",count,/s,extra"`
+	}
+	_, err := renderWrite([]Row{{X: 1}})
+	equalErr(t, err, "field X: at most one formatter modifier and one suffix supported, got [count /s extra]")
 }
 
 func TestRenderTagCountRejectsFloat(t *testing.T) {
@@ -245,14 +275,27 @@ func TestRenderTagCountRejectsFloat(t *testing.T) {
 
 func TestRenderTagPercent(t *testing.T) {
 	type Row struct {
-		Ratio float64 `table:"RATIO,percent"`
+		Pct float64 `table:"PCT,%"`
+	}
+	got := render([]Row{
+		{Pct: 0.1},
+		{Pct: 100.0},
+		{Pct: 42.0},
+	})
+	want := "PCT   \n  0.1%\n100.0%\n 42.0%"
+	equal(t, got, want)
+}
+
+func TestRenderTagRatio(t *testing.T) {
+	type Row struct {
+		Ratio float64 `table:"RATIO,%%"`
 	}
 	got := render([]Row{
 		{Ratio: 0.001},
 		{Ratio: 1.0},
 		{Ratio: 0.42},
 	})
-	want := "RATIO  \n  0.1 %\n100.0 %\n 42.0 %"
+	want := "RATIO \n  0.1%\n100.0%\n 42.0%"
 	equal(t, got, want)
 }
 
@@ -266,10 +309,10 @@ func TestRenderTagBytesRejectsFloat(t *testing.T) {
 
 func TestRenderTagPercentRejectsInt(t *testing.T) {
 	type Row struct {
-		Pct int `table:",percent"`
+		Pct int `table:",%"`
 	}
 	_, err := renderWrite([]Row{{Pct: 50}})
-	equalErr(t, err, "field Pct: 'percent' modifier requires float, got int")
+	equalErr(t, err, "field Pct: '%' modifier requires float, got int")
 }
 
 func TestRenderTagUnknownModifier(t *testing.T) {

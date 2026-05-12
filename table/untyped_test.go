@@ -37,7 +37,7 @@ func TestUntypedInt64BytesModifier(t *testing.T) {
 		{1048576},
 	}
 	got := ansi.Strip(Format[[]int64](seqOf(rows), WithColumns(Column{Header: "SIZE", Modifier: "bytes"})))
-	want := "SIZE   \n  128 B\n3.5 KiB\n1.0 MiB"
+	want := "SIZE  \n  128B\n3.5KiB\n1.0MiB"
 	equal(t, got, want)
 }
 
@@ -48,7 +48,7 @@ func TestUntypedInt64CountModifier(t *testing.T) {
 		{1_500_000},
 	}
 	got := ansi.Strip(Format[[]int64](seqOf(rows), WithColumns(Column{Header: "REQS", Modifier: "count"})))
-	want := "REQS \n  500\n1.5 K\n1.5 M"
+	want := "REQS\n 500\n1.5K\n1.5M"
 	equal(t, got, want)
 }
 
