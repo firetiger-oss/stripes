@@ -51,12 +51,13 @@ func TestParquetTable(t *testing.T) {
 		"30", "25", "42",
 		"true", "false",
 	)
-	// TIMESTAMP_MILLIS columns must be formatted as time.DateTime
-	// ("2026-01-15 10:00:00"), proving schema-driven conversion ran.
+	// TIMESTAMP_MILLIS columns must be formatted with the table subpackage's
+	// slash-date layout ("2026/01/15 10:00:00"), proving schema-driven
+	// conversion ran.
 	for _, want := range []string{
-		"2026-01-15 10:00:00",
-		"2026-02-03 14:30:00",
-		"2026-03-09 09:15:00",
+		"2026/01/15 10:00:00",
+		"2026/02/03 14:30:00",
+		"2026/03/09 09:15:00",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("parquetTable output missing timestamp %q\nfull output:\n%s", want, out)

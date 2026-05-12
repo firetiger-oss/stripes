@@ -55,7 +55,7 @@ func TestRenderTimeAbsolute(t *testing.T) {
 	}
 	created := time.Date(2026, 5, 11, 10, 23, 45, 0, time.UTC)
 	got := render([]Row{{Created: created, Note: "ok"}})
-	want := "CREATED              NOTE\n2026-05-11 10:23:45  ok  "
+	want := "CREATED              NOTE\n2026/05/11 10:23:45  ok  "
 	equal(t, got, want)
 }
 

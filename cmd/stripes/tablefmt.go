@@ -128,9 +128,10 @@ func jsonlTable(w io.Writer, r io.Reader, styles *stripes.Styles) {
 
 // parquetTable renders a parquet file as a typed-table view. The parquet
 // schema drives column formatting: TIMESTAMP columns surface as time.Time
-// (rendered as time.DateTime), DATE as midnight time.Time, and primitives
-// pass through as their natural Go types. The table sub-package then
-// dispatches per-cell via anyCellFormatter.
+// (rendered with the table sub-package's slash-date layout), DATE as
+// midnight time.Time, and primitives pass through as their natural Go
+// types. The table sub-package then dispatches per-cell via
+// anyCellFormatter.
 //
 // Parquet requires random access, so the entire input is buffered.
 func parquetTable(w io.Writer, r io.Reader, styles *stripes.Styles) {
