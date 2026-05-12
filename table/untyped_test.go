@@ -65,17 +65,18 @@ func TestUntypedAnyNestedSlice(t *testing.T) {
 }
 
 func TestUntypedAnyJSONColorize(t *testing.T) {
-	// Nested cells inside []any rows currently DON'T pick up the JSON
-	// token colorizer — `formatterForCell` routes `any` columns to
-	// identityColorize because token-coloring would require inspecting
-	// each cell's dynamic type after format. The header still goes bold.
+	// Nested cells inside []any rows pick up the JSON token colorizer
+	// even though the column's static type is `any`: anyCellFormatter
+	// wraps the per-cell formatter with colorizeJSON when the dynamic
+	// type is a JSON-fallback shape (slice/array/map/struct).
 	forceColor(t)
 	var buf bytes.Buffer
 	rows := [][]any{{[]string{"x", "y"}}}
 	if err := Write[[]any](&buf, seq2Of(rows), WithHeaders("V")); err != nil {
 		t.Fatal(err)
 	}
-	want := "\x1b[1mV\x1b[0m        \n[\"x\",\"y\"]"
+	want := "\x1b[1mV\x1b[0m        \n" +
+		"\x1b[1;37m[\x1b[0m\x1b[32m\"x\"\x1b[0m\x1b[1;37m,\x1b[0m\x1b[32m\"y\"\x1b[0m\x1b[1;37m]\x1b[0m"
 	equal(t, buf.String(), want)
 }
 

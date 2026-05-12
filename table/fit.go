@@ -1,9 +1,8 @@
 package table
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // fitToWidth truncates row cells so the rendered table fits within
@@ -102,8 +101,15 @@ func fitToWidth(headers []string, rows [][]string, targetWidth int, bordered boo
 	return out
 }
 
-// truncate shortens s to at most width visual columns, appending "..." when
-// there is room, or a hard cut otherwise.
+// truncate cuts s to width visible columns, appending "..." when there
+// is room. The input may contain ANSI SGR escape sequences (e.g. from
+// colorizeJSON); width is counted in visible columns via ansi.Truncate.
+//
+// The ellipsis tail is prefixed with an SGR reset ("\x1b[0m...") so an
+// open style from a token that the cut lands inside cannot paint the
+// "...". Lipgloss style.Render emits matched open/close SGR pairs per
+// token, so any sequences ansi.Truncate continues to pass through after
+// the cut all resolve back to default attributes by end of cell.
 func truncate(s string, width int) string {
 	if width <= 0 {
 		return ""
@@ -113,27 +119,7 @@ func truncate(s string, width int) string {
 	}
 	const ellipsis = "..."
 	if width <= len(ellipsis) {
-		return cutRunes(s, width)
+		return ansi.Truncate(s, width, "")
 	}
-	return cutRunes(s, width-len(ellipsis)) + ellipsis
-}
-
-// cutRunes returns the first n runes of s. It approximates visual width as
-// one column per rune, which is correct for ASCII / most Latin scripts.
-// CJK and emoji content may render slightly wider than expected.
-func cutRunes(s string, n int) string {
-	if n <= 0 {
-		return ""
-	}
-	var b strings.Builder
-	b.Grow(n)
-	count := 0
-	for _, r := range s {
-		if count >= n {
-			break
-		}
-		b.WriteRune(r)
-		count++
-	}
-	return b.String()
+	return ansi.Truncate(s, width, "\x1b[0m"+ellipsis)
 }

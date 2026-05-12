@@ -232,6 +232,11 @@ func formatterForCell(t reflect.Type, modifier string, opts *Options) (
 // `any` (interface{}). It unwraps the interface at render time, looks up
 // (and caches) a per-type formatter via chooseFormatter, and applies it.
 // Nil interfaces render as empty strings.
+//
+// JSON-fallback dynamic types (slice/array/map/struct) are wrapped with
+// colorizeJSON here rather than via the per-column colorize hook,
+// because the column's *static* colorize hook is identityColorize — we
+// don't learn the cell is JSON-shaped until we unwrap the interface.
 func anyCellFormatter(opts *Options) func(reflect.Value) string {
 	var cache sync.Map // map[reflect.Type]func(reflect.Value) string
 	return func(v reflect.Value) string {
@@ -249,6 +254,11 @@ func anyCellFormatter(opts *Options) func(reflect.Value) string {
 			return fn.(func(reflect.Value) string)(v)
 		}
 		fn := chooseFormatter(t, opts)
+		if isJSONFallbackType(t) {
+			styles := opts.Styles
+			inner := fn
+			fn = func(v reflect.Value) string { return colorizeJSON(inner(v), styles) }
+		}
 		cache.Store(t, fn)
 		return fn(v)
 	}

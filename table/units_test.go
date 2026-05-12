@@ -261,7 +261,7 @@ func TestFitToWidthRespectsBorderChrome(t *testing.T) {
 	if got[0][0] == rows[0][0] {
 		t.Fatalf("expected truncation under bordered chrome, got %q", got[0][0])
 	}
-	if w := len(got[0][0]); w > 6 {
+	if w := ansi.StringWidth(got[0][0]); w > 6 {
 		t.Errorf("truncated cell wider than budget: %d > 6 (cell=%q)", w, got[0][0])
 	}
 }
