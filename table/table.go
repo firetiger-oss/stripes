@@ -54,6 +54,26 @@ type Options struct {
 	// slice or array (untyped rows); rejected when T is a struct, where
 	// the schema is derived from struct fields and tags instead.
 	Columns []Column
+
+	// ColumnStyle, when non-nil, is called once per data cell. The
+	// returned lipgloss.Style is composed with Styles.Rows via Inherit:
+	// fields set on the returned style win, defaults fill the rest. col
+	// is the zero-based column index; val is the post-width-fit,
+	// post-internal-colorize cell text.
+	ColumnStyle func(col int, val string) lipgloss.Style
+
+	// HeaderStyle, when non-nil, is called once per header cell. The
+	// returned lipgloss.Style is composed with Styles.Columns via
+	// Inherit: fields set on the returned style win, defaults (e.g.
+	// bold) fill the rest. col is the zero-based column index; val is
+	// the header text.
+	HeaderStyle func(col int, val string) lipgloss.Style
+
+	// RowStyle, when non-nil, is called once per data row before any
+	// per-cell ColumnStyle is applied. The returned lipgloss.Style is
+	// composed with Styles.Rows via Inherit. row is the zero-based data
+	// row index (the header row is not counted).
+	RowStyle func(row int) lipgloss.Style
 }
 
 // Column describes one column when the row type isn't a struct. Each
@@ -109,6 +129,31 @@ func WithHeaders(names ...string) Option {
 		cols[i].Header = n
 	}
 	return WithColumns(cols...)
+}
+
+// WithColumnStyle registers a per-cell style callback for data rows.
+// fn is invoked for every data cell with its zero-based column index
+// and rendered text; the returned style composes with Styles.Rows (and
+// any RowStyle) via Inherit, so fields the caller sets win and unset
+// fields fall back to the defaults.
+func WithColumnStyle(fn func(col int, val string) lipgloss.Style) Option {
+	return func(o *Options) { o.ColumnStyle = fn }
+}
+
+// WithHeaderStyle registers a per-cell style callback for header
+// cells. fn is invoked for every header cell with its zero-based
+// column index and header text; the returned style composes with
+// Styles.Columns via Inherit.
+func WithHeaderStyle(fn func(col int, val string) lipgloss.Style) Option {
+	return func(o *Options) { o.HeaderStyle = fn }
+}
+
+// WithRowStyle registers a per-row style callback. fn is invoked once
+// per data row with its zero-based index (the header is not counted);
+// the returned style composes with Styles.Rows via Inherit and runs
+// before any ColumnStyle.
+func WithRowStyle(fn func(row int) lipgloss.Style) Option {
+	return func(o *Options) { o.RowStyle = fn }
 }
 
 func resolveOptions(opts []Option) Options {
@@ -231,8 +276,17 @@ func (s *schema) render(rows [][]string, opts *Options) string {
 		isHeader := row == lipglosstable.HeaderRow
 		if isHeader {
 			base = styles.Columns
+			if opts.HeaderStyle != nil && col >= 0 && col < len(headers) {
+				base = opts.HeaderStyle(col, headers[col]).Inherit(base)
+			}
 		} else {
 			base = styles.Rows
+			if opts.RowStyle != nil && row >= 0 {
+				base = opts.RowStyle(row).Inherit(base)
+			}
+			if opts.ColumnStyle != nil && row >= 0 && row < len(rows) && col >= 0 && col < len(rows[row]) {
+				base = opts.ColumnStyle(col, rows[row][col]).Inherit(base)
+			}
 		}
 		// Padding strategy:
 		//   - Bordered: 1-char pad on each side (between content and the

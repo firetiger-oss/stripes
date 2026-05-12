@@ -526,6 +526,161 @@ func TestRenderJSONCellWithTruncation(t *testing.T) {
 	equal(t, buf.String(), want)
 }
 
+func TestRenderColumnStyleOnStruct(t *testing.T) {
+	forceColor(t)
+	type Row struct {
+		Name   string
+		Status string
+		Count  int
+	}
+	rows := []Row{
+		{Name: "alice", Status: "ok", Count: 3},
+		{Name: "bob", Status: "fail", Count: 1},
+	}
+	got := Format[Row](seqOf(rows),
+		WithColumnStyle(func(col int, val string) lipgloss.Style {
+			if col == 1 {
+				return lipgloss.NewStyle().Background(lipgloss.Color("#ff0066"))
+			}
+			return lipgloss.NewStyle()
+		}),
+	)
+	want := "\x1b[1mNAME\x1b[0m   \x1b[1mSTATUS\x1b[0m  \x1b[1mCOUNT\x1b[0m\n" +
+		"alice  \x1b[48;2;255;0;102mok\x1b[0m\x1b[48;2;255;0;102m  \x1b[0m\x1b[48;2;255;0;102m    \x1b[0m    3\n" +
+		"bob    \x1b[48;2;255;0;102mfail\x1b[0m\x1b[48;2;255;0;102m  \x1b[0m\x1b[48;2;255;0;102m  \x1b[0m    1"
+	equal(t, got, want)
+}
+
+func TestRenderColumnStyleOnSlice(t *testing.T) {
+	forceColor(t)
+	rows := [][]string{
+		{"alice", "ok"},
+		{"bob", "fail"},
+	}
+	got := Format[[]string](seqOf(rows),
+		WithHeaders("NAME", "STATUS"),
+		WithColumnStyle(func(col int, val string) lipgloss.Style {
+			if col == 1 {
+				return lipgloss.NewStyle().Background(lipgloss.Color("#ff0066"))
+			}
+			return lipgloss.NewStyle()
+		}),
+	)
+	want := "\x1b[1mNAME\x1b[0m   \x1b[1mSTATUS\x1b[0m\n" +
+		"alice  \x1b[48;2;255;0;102mok\x1b[0m\x1b[48;2;255;0;102m    \x1b[0m\n" +
+		"bob    \x1b[48;2;255;0;102mfail\x1b[0m\x1b[48;2;255;0;102m  \x1b[0m"
+	equal(t, got, want)
+}
+
+func TestRenderColumnStyleComposesWithColorizeJSON(t *testing.T) {
+	forceColor(t)
+	type Row struct {
+		Tags []string
+	}
+	got := Format[Row](seqOf([]Row{{Tags: []string{"ops"}}}),
+		WithColumnStyle(func(col int, val string) lipgloss.Style {
+			return lipgloss.NewStyle().Background(lipgloss.Color("#3366ff"))
+		}),
+	)
+	// JSON-token ANSI must still be present inside the cell, AND the
+	// outer lipgloss background must wrap it.
+	if !strings.Contains(got, "\x1b[32m\"ops\"\x1b[0m") {
+		t.Errorf("missing JSON string-token ANSI in output: %q", got)
+	}
+	if !strings.Contains(got, "\x1b[48;2;51;102;255m") {
+		t.Errorf("missing per-column background ANSI in output: %q", got)
+	}
+}
+
+func TestRenderHeaderStyleInheritsBold(t *testing.T) {
+	forceColor(t)
+	type Row struct {
+		Name   string
+		Status string
+	}
+	got := Format[Row](seqOf([]Row{{Name: "alice", Status: "ok"}}),
+		WithHeaderStyle(func(col int, val string) lipgloss.Style {
+			if col == 1 {
+				return lipgloss.NewStyle().Background(lipgloss.Color("#3366ff"))
+			}
+			return lipgloss.NewStyle()
+		}),
+	)
+	// Header col 0 keeps plain bold; col 1 is bold + background (Inherit
+	// composes the user's background with the default bold).
+	want := "\x1b[1mNAME\x1b[0m   \x1b[1;48;2;51;102;255mSTATUS\x1b[0m\nalice  ok    "
+	equal(t, got, want)
+}
+
+func TestRenderRowStyleAlternating(t *testing.T) {
+	forceColor(t)
+	type Row struct {
+		Name string
+	}
+	rows := []Row{{Name: "a"}, {Name: "b"}, {Name: "c"}, {Name: "d"}}
+	got := Format[Row](seqOf(rows),
+		WithRowStyle(func(row int) lipgloss.Style {
+			if row%2 == 1 {
+				return lipgloss.NewStyle().Background(lipgloss.Color("#222222"))
+			}
+			return lipgloss.NewStyle()
+		}),
+	)
+	want := "\x1b[1mNAME\x1b[0m\n" +
+		"a   \n" +
+		"\x1b[48;2;34;34;34mb\x1b[0m\x1b[48;2;34;34;34m   \x1b[0m\n" +
+		"c   \n" +
+		"\x1b[48;2;34;34;34md\x1b[0m\x1b[48;2;34;34;34m   \x1b[0m"
+	equal(t, got, want)
+}
+
+func TestRenderRowAndColumnStyleCompose(t *testing.T) {
+	forceColor(t)
+	type Row struct {
+		Name   string
+		Status string
+	}
+	rows := []Row{{Name: "a", Status: "ok"}, {Name: "b", Status: "fail"}}
+	got := Format[Row](seqOf(rows),
+		WithRowStyle(func(row int) lipgloss.Style {
+			if row%2 == 1 {
+				return lipgloss.NewStyle().Background(lipgloss.Color("#222222"))
+			}
+			return lipgloss.NewStyle()
+		}),
+		WithColumnStyle(func(col int, val string) lipgloss.Style {
+			if col == 1 {
+				return lipgloss.NewStyle().Background(lipgloss.Color("#ff0066"))
+			}
+			return lipgloss.NewStyle()
+		}),
+	)
+	// Order of layering means column wins on col 1 for both rows, and
+	// row-style still paints col 0 on the odd row.
+	row0Bg := "\x1b[48;2;34;34;34m" // dark gray
+	colBg := "\x1b[48;2;255;0;102m" // pink
+	if !strings.Contains(got, colBg) {
+		t.Errorf("missing column background in output: %q", got)
+	}
+	if !strings.Contains(got, row0Bg) {
+		t.Errorf("missing row background in output: %q", got)
+	}
+	// Row 1 col 0 should carry the row background (no column-style wins
+	// here because column 0 returns a zero style).
+	lines := strings.Split(got, "\n")
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 lines, got %d: %q", len(lines), got)
+	}
+	if !strings.HasPrefix(lines[2], row0Bg) {
+		t.Errorf("odd data row should start with row background; line=%q", lines[2])
+	}
+	// And the same odd row's col 1 should carry the column background,
+	// not the row background.
+	if !strings.Contains(lines[2], colBg+"fail") {
+		t.Errorf("odd data row should carry column bg on col 1; line=%q", lines[2])
+	}
+}
+
 func benchmarkWrite(b *testing.B, n int) {
 	type Row struct {
 		Name    string
@@ -557,3 +712,49 @@ func benchmarkWrite(b *testing.B, n int) {
 func BenchmarkWriteSmall(b *testing.B)  { benchmarkWrite(b, 10) }
 func BenchmarkWriteMedium(b *testing.B) { benchmarkWrite(b, 100) }
 func BenchmarkWriteLarge(b *testing.B)  { benchmarkWrite(b, 1000) }
+
+func benchmarkStyleHooks(b *testing.B, n int, opts ...Option) {
+	type Row struct {
+		Name   string
+		Status string
+		Count  int
+	}
+	rows := make([]Row, n)
+	for i := range rows {
+		rows[i] = Row{Name: "row", Status: "ok", Count: i}
+	}
+	w := NewWriter[Row](opts...)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		var sink bytes.Buffer
+		sink.Grow(n * 32)
+		if err := w(&sink, seq2Of(rows)); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkRenderNoStyleHooks(b *testing.B) {
+	benchmarkStyleHooks(b, 100)
+}
+
+func BenchmarkRenderColumnStyle(b *testing.B) {
+	red := lipgloss.NewStyle().Background(lipgloss.Color("#ff0066"))
+	benchmarkStyleHooks(b, 100, WithColumnStyle(func(col int, _ string) lipgloss.Style {
+		if col == 1 {
+			return red
+		}
+		return lipgloss.NewStyle()
+	}))
+}
+
+func BenchmarkRenderRowStyle(b *testing.B) {
+	dim := lipgloss.NewStyle().Background(lipgloss.Color("#222222"))
+	benchmarkStyleHooks(b, 100, WithRowStyle(func(row int) lipgloss.Style {
+		if row%2 == 1 {
+			return dim
+		}
+		return lipgloss.NewStyle()
+	}))
+}
