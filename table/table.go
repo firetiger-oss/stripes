@@ -74,6 +74,27 @@ type Options struct {
 	// composed with Styles.Rows via Inherit. row is the zero-based data
 	// row index (the header row is not counted).
 	RowStyle func(row int) lipgloss.Style
+
+	// RowSelectors holds the predicates passed to WithRowSelector. When
+	// non-empty, the renderer draws a one-cell gutter on the left: rows
+	// for which any selector returns true render SelectedIndicator,
+	// other rows and the header render a single space. The `row`
+	// argument is the absolute row index (unaffected by ViewportTop).
+	RowSelectors []func(row int) bool
+
+	// SelectedIndicator is the gutter glyph drawn for rows matched by
+	// any RowSelector. Empty means use the package default ("❯").
+	SelectedIndicator string
+
+	// ViewportHeight, when > 0, restricts rendering to that many rows
+	// starting at ViewportTop. When totalRows > ViewportHeight a
+	// one-cell scrollbar is drawn on the right. Zero disables the
+	// viewport — all rows render.
+	ViewportHeight int
+
+	// ViewportTop is the absolute row index of the first visible row
+	// when ViewportHeight > 0. Clamped to [0, max(0, totalRows-height)].
+	ViewportTop int
 }
 
 // Column describes one column when the row type isn't a struct. Each
@@ -156,6 +177,40 @@ func WithRowStyle(fn func(row int) lipgloss.Style) Option {
 	return func(o *Options) { o.RowStyle = fn }
 }
 
+// WithRowSelector adds a row-selection predicate. May be called multiple
+// times — a row matches if ANY selector returns true. Setting any selector
+// enables the one-cell left gutter: matching rows render the indicator
+// (default "❯", overridable via WithSelectedIndicator), the header and
+// non-matching rows render a single space.
+//
+// The `row` argument is the absolute index into the input sequence,
+// unaffected by WithViewport's top offset.
+func WithRowSelector(fn func(row int) bool) Option {
+	return func(o *Options) {
+		o.RowSelectors = append(o.RowSelectors, fn)
+	}
+}
+
+// WithSelectedIndicator sets the gutter glyph for rows matched by any
+// WithRowSelector predicate. Defaults to "❯". Must be a single visual cell
+// (e.g. "❯", "▶", "→"); multi-cell strings will misalign columns.
+func WithSelectedIndicator(s string) Option {
+	return func(o *Options) { o.SelectedIndicator = s }
+}
+
+// WithViewport restricts rendering to `height` rows starting at row `top`
+// (0-indexed, absolute). When totalRows > height a one-cell scrollbar is
+// drawn on the right of every line (track "│", thumb "▌") with the thumb's
+// position computed from (top, height, totalRows). When the data fits,
+// no scrollbar is drawn. height must be >= 1; top is clamped to
+// [0, max(0, totalRows-height)].
+func WithViewport(height, top int) Option {
+	return func(o *Options) {
+		o.ViewportHeight = height
+		o.ViewportTop = top
+	}
+}
+
 func resolveOptions(opts []Option) Options {
 	out := Options{Styles: stripes.DefaultStyles}
 	for _, opt := range opts {
@@ -219,6 +274,25 @@ func NewFormatter[T any](opts ...Option) Formatter[T] {
 
 func (s *schema) render(rows [][]string, opts *Options) string {
 	styles := opts.Styles
+	totalRows := len(rows)
+
+	viewportTop := opts.ViewportTop
+	if opts.ViewportHeight > 0 {
+		if viewportTop < 0 {
+			viewportTop = 0
+		}
+		if maxTop := totalRows - opts.ViewportHeight; maxTop < 0 {
+			viewportTop = 0
+		} else if viewportTop > maxTop {
+			viewportTop = maxTop
+		}
+		end := viewportTop + opts.ViewportHeight
+		if end > totalRows {
+			end = totalRows
+		}
+		rows = rows[viewportTop:end]
+	}
+
 	t := lipglosstable.New()
 	if opts.Border != (lipgloss.Border{}) {
 		t = t.
@@ -282,7 +356,7 @@ func (s *schema) render(rows [][]string, opts *Options) string {
 		} else {
 			base = styles.Rows
 			if opts.RowStyle != nil && row >= 0 {
-				base = opts.RowStyle(row).Inherit(base)
+				base = opts.RowStyle(row + viewportTop).Inherit(base)
 			}
 			if opts.ColumnStyle != nil && row >= 0 && row < len(rows) && col >= 0 && col < len(rows[row]) {
 				base = opts.ColumnStyle(col, rows[row][col]).Inherit(base)
@@ -310,5 +384,5 @@ func (s *schema) render(rows [][]string, opts *Options) string {
 		}
 		return st
 	})
-	return t.Render()
+	return decorate(t.Render(), totalRows, viewportTop, opts)
 }
