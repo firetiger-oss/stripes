@@ -204,6 +204,11 @@ func formatterForCell(t reflect.Type, modifier string, opts *Options) (
 			return nil, alignLeft, nil, fmt.Errorf("'bytes' modifier requires int or uint, got %s", t)
 		}
 		return bytesFormatter(t.Kind()), alignRight, identityColorize, nil
+	case "count":
+		if !isIntOrUintKind(t.Kind()) {
+			return nil, alignLeft, nil, fmt.Errorf("'count' modifier requires int or uint, got %s", t)
+		}
+		return countFormatter(t.Kind()), alignRight, identityColorize, nil
 	case "percent":
 		if !isFloatKind(t.Kind()) {
 			return nil, alignLeft, nil, fmt.Errorf("'percent' modifier requires float, got %s", t)
@@ -534,6 +539,39 @@ func humanBytes(n int64) string {
 			return fmt.Sprintf("%.1f %s", f, u)
 		}
 		f /= 1024
+	}
+	return ""
+}
+
+func countFormatter(k reflect.Kind) func(reflect.Value) string {
+	if k == reflect.Uint || k == reflect.Uint8 || k == reflect.Uint16 || k == reflect.Uint32 || k == reflect.Uint64 || k == reflect.Uintptr {
+		return func(v reflect.Value) string {
+			u := v.Uint()
+			if u > math.MaxInt64 {
+				return humanCount(math.MaxInt64)
+			}
+			return humanCount(int64(u))
+		}
+	}
+	return func(v reflect.Value) string {
+		return humanCount(v.Int())
+	}
+}
+
+func humanCount(n int64) string {
+	if n < 0 {
+		return "-" + humanCount(-n)
+	}
+	if n < 1000 {
+		return strconv.FormatInt(n, 10)
+	}
+	units := []string{"K", "M", "G", "T", "P", "E"}
+	f := float64(n) / 1000
+	for i, u := range units {
+		if f < 1000 || i == len(units)-1 {
+			return fmt.Sprintf("%.1f %s", f, u)
+		}
+		f /= 1000
 	}
 	return ""
 }

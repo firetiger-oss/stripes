@@ -41,6 +41,17 @@ func TestUntypedInt64BytesModifier(t *testing.T) {
 	equal(t, got, want)
 }
 
+func TestUntypedInt64CountModifier(t *testing.T) {
+	rows := [][]int64{
+		{500},
+		{1500},
+		{1_500_000},
+	}
+	got := ansi.Strip(Format[[]int64](seqOf(rows), WithColumns(Column{Header: "REQS", Modifier: "count"})))
+	want := "REQS \n  500\n1.5 K\n1.5 M"
+	equal(t, got, want)
+}
+
 func TestUntypedAnyMixedTypes(t *testing.T) {
 	now := time.Date(2026, 5, 11, 10, 23, 45, 0, time.UTC)
 	rows := [][]any{
@@ -141,6 +152,12 @@ func TestUntypedBytesOnNonInt(t *testing.T) {
 	_, err := renderWrite([][]string{{"x"}},
 		WithColumns(Column{Header: "X", Modifier: "bytes"}))
 	equalErr(t, err, `column 0 ("X"): 'bytes' modifier requires int or uint, got string`)
+}
+
+func TestUntypedCountOnNonInt(t *testing.T) {
+	_, err := renderWrite([][]string{{"x"}},
+		WithColumns(Column{Header: "X", Modifier: "count"}))
+	equalErr(t, err, `column 0 ("X"): 'count' modifier requires int or uint, got string`)
 }
 
 func TestUntypedPointerElementSlice(t *testing.T) {

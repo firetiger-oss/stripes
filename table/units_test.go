@@ -182,6 +182,46 @@ func TestBytesFormatterIntAndUint(t *testing.T) {
 	}
 }
 
+func TestHumanCount(t *testing.T) {
+	cases := []struct {
+		in   int64
+		want string
+	}{
+		{0, "0"},
+		{1, "1"},
+		{999, "999"},
+		{1000, "1.0 K"},
+		{1500, "1.5 K"},
+		{1_000_000, "1.0 M"},
+		{1_500_000, "1.5 M"},
+		{1_000_000_000, "1.0 G"},
+		{1_000_000_000_000, "1.0 T"},
+		{1_000_000_000_000_000, "1.0 P"},
+		{1_000_000_000_000_000_000, "1.0 E"},
+		{-1000, "-1.0 K"},
+		{-1, "-1"},
+	}
+	for _, c := range cases {
+		if got := humanCount(c.in); got != c.want {
+			t.Errorf("humanCount(%d) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestCountFormatterIntAndUint(t *testing.T) {
+	intFmt := countFormatter(reflect.Int64)
+	uintFmt := countFormatter(reflect.Uint64)
+	if got := intFmt(reflect.ValueOf(int64(1500))); got != "1.5 K" {
+		t.Errorf("intFmt(1500) = %q", got)
+	}
+	if got := uintFmt(reflect.ValueOf(uint64(1500))); got != "1.5 K" {
+		t.Errorf("uintFmt(1500) = %q", got)
+	}
+	if got := uintFmt(reflect.ValueOf(uint64(math.MaxUint64))); got == "" {
+		t.Errorf("uintFmt(MaxUint64) returned empty string")
+	}
+}
+
 func TestColorizeJSONShapes(t *testing.T) {
 	cases := []string{
 		`{}`,
