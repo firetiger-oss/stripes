@@ -16,20 +16,20 @@ func TestHumanBytes(t *testing.T) {
 		in   int64
 		want string
 	}{
-		{0, "0 B"},
-		{1, "1 B"},
-		{1023, "1023 B"},
-		{1024, "1.0 KiB"},
-		{1536, "1.5 KiB"},
-		{3584, "3.5 KiB"},
-		{1024 * 1024, "1.0 MiB"},
-		{1024*1024 + 512*1024, "1.5 MiB"},
-		{1024 * 1024 * 1024, "1.0 GiB"},
-		{1024 * 1024 * 1024 * 1024, "1.0 TiB"},
-		{int64(1024) * 1024 * 1024 * 1024 * 1024, "1.0 PiB"},
-		{int64(1024) * 1024 * 1024 * 1024 * 1024 * 1024, "1.0 EiB"},
-		{-1024, "-1.0 KiB"},
-		{-1, "-1 B"},
+		{0, "0B"},
+		{1, "1B"},
+		{1023, "1023B"},
+		{1024, "1.0KiB"},
+		{1536, "1.5KiB"},
+		{3584, "3.5KiB"},
+		{1024 * 1024, "1.0MiB"},
+		{1024*1024 + 512*1024, "1.5MiB"},
+		{1024 * 1024 * 1024, "1.0GiB"},
+		{1024 * 1024 * 1024 * 1024, "1.0TiB"},
+		{int64(1024) * 1024 * 1024 * 1024 * 1024, "1.0PiB"},
+		{int64(1024) * 1024 * 1024 * 1024 * 1024 * 1024, "1.0EiB"},
+		{-1024, "-1.0KiB"},
+		{-1, "-1B"},
 	}
 	for _, c := range cases {
 		if got := humanBytes(c.in); got != c.want {
@@ -105,8 +105,8 @@ func TestParseTag(t *testing.T) {
 		{"NAME", "NAME", []string{}},
 		{"NAME,bytes", "NAME", []string{"bytes"}},
 		{",bytes", "", []string{"bytes"}},
-		{",bytes,percent", "", []string{"bytes", "percent"}},
-		{"NAME,bytes,percent", "NAME", []string{"bytes", "percent"}},
+		{",bytes,%", "", []string{"bytes", "%"}},
+		{"NAME,bytes,%", "NAME", []string{"bytes", "%"}},
 	}
 	for _, c := range cases {
 		name, mods := parseTag(c.in)
@@ -149,14 +149,14 @@ func TestPercentFormatter(t *testing.T) {
 		in   float64
 		want string
 	}{
-		{0, "0.0 %"},
-		{0.001, "0.1 %"},
-		{0.1, "10.0 %"},
-		{0.42, "42.0 %"},
-		{1.0, "100.0 %"},
-		{1.5, "150.0 %"},
-		{-0.25, "-25.0 %"},
-		{math.NaN(), "NaN %"},
+		{0, "0.0%"},
+		{0.1, "0.1%"},
+		{10, "10.0%"},
+		{42, "42.0%"},
+		{100, "100.0%"},
+		{150, "150.0%"},
+		{-25, "-25.0%"},
+		{math.NaN(), "NaN%"},
 	}
 	for _, c := range cases {
 		v := reflect.ValueOf(c.in)
@@ -167,13 +167,36 @@ func TestPercentFormatter(t *testing.T) {
 	}
 }
 
+func TestRatioFormatter(t *testing.T) {
+	cases := []struct {
+		in   float64
+		want string
+	}{
+		{0, "0.0%"},
+		{0.001, "0.1%"},
+		{0.1, "10.0%"},
+		{0.42, "42.0%"},
+		{1.0, "100.0%"},
+		{1.5, "150.0%"},
+		{-0.25, "-25.0%"},
+		{math.NaN(), "NaN%"},
+	}
+	for _, c := range cases {
+		v := reflect.ValueOf(c.in)
+		got := ratioFormatter(v)
+		if got != c.want {
+			t.Errorf("ratioFormatter(%v) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
 func TestBytesFormatterIntAndUint(t *testing.T) {
 	intFmt := bytesFormatter(reflect.Int64)
 	uintFmt := bytesFormatter(reflect.Uint64)
-	if got := intFmt(reflect.ValueOf(int64(1024))); got != "1.0 KiB" {
+	if got := intFmt(reflect.ValueOf(int64(1024))); got != "1.0KiB" {
 		t.Errorf("intFmt(1024) = %q", got)
 	}
-	if got := uintFmt(reflect.ValueOf(uint64(1024))); got != "1.0 KiB" {
+	if got := uintFmt(reflect.ValueOf(uint64(1024))); got != "1.0KiB" {
 		t.Errorf("uintFmt(1024) = %q", got)
 	}
 	// huge uint that overflows int64 should be clamped to MaxInt64.
@@ -190,15 +213,15 @@ func TestHumanCount(t *testing.T) {
 		{0, "0"},
 		{1, "1"},
 		{999, "999"},
-		{1000, "1.0 K"},
-		{1500, "1.5 K"},
-		{1_000_000, "1.0 M"},
-		{1_500_000, "1.5 M"},
-		{1_000_000_000, "1.0 G"},
-		{1_000_000_000_000, "1.0 T"},
-		{1_000_000_000_000_000, "1.0 P"},
-		{1_000_000_000_000_000_000, "1.0 E"},
-		{-1000, "-1.0 K"},
+		{1000, "1.0K"},
+		{1500, "1.5K"},
+		{1_000_000, "1.0M"},
+		{1_500_000, "1.5M"},
+		{1_000_000_000, "1.0G"},
+		{1_000_000_000_000, "1.0T"},
+		{1_000_000_000_000_000, "1.0P"},
+		{1_000_000_000_000_000_000, "1.0E"},
+		{-1000, "-1.0K"},
 		{-1, "-1"},
 	}
 	for _, c := range cases {
@@ -211,10 +234,10 @@ func TestHumanCount(t *testing.T) {
 func TestCountFormatterIntAndUint(t *testing.T) {
 	intFmt := countFormatter(reflect.Int64)
 	uintFmt := countFormatter(reflect.Uint64)
-	if got := intFmt(reflect.ValueOf(int64(1500))); got != "1.5 K" {
+	if got := intFmt(reflect.ValueOf(int64(1500))); got != "1.5K" {
 		t.Errorf("intFmt(1500) = %q", got)
 	}
-	if got := uintFmt(reflect.ValueOf(uint64(1500))); got != "1.5 K" {
+	if got := uintFmt(reflect.ValueOf(uint64(1500))); got != "1.5K" {
 		t.Errorf("uintFmt(1500) = %q", got)
 	}
 	if got := uintFmt(reflect.ValueOf(uint64(math.MaxUint64))); got == "" {

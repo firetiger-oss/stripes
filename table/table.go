@@ -7,7 +7,7 @@
 // cell formatter from the field's type. Numeric fields are right-aligned;
 // time.Time and time.Duration get dedicated human-friendly formats; any
 // type implementing encoding.TextMarshaler, fmt.Formatter, or fmt.Stringer
-// is honoured. Tag modifiers (`table:",bytes"`, `table:",percent"`) pin a
+// is honoured. Tag modifiers (`table:",bytes"`, `table:",%"`, `table:",%%"`) pin a
 // specific formatter and alignment for cases the type system can't infer.
 //
 // The API mirrors what callers usually want: Write for streaming an
@@ -108,9 +108,14 @@ type Column struct {
 	Header string
 
 	// Modifier optionally pins a formatter, mirroring the struct-tag
-	// modifiers: "bytes", "percent", or "" to use the element type's
+	// modifiers: "bytes", "count", "%", "%%", or "" to use the element type's
 	// default formatter.
 	Modifier string
+
+	// Suffix is appended to every non-empty formatted cell, mirroring the
+	// optional literal suffix in struct tags (e.g. `table:",count,/s"`).
+	// Empty cells are left empty so column alignment is preserved.
+	Suffix string
 }
 
 // Option configures Options.

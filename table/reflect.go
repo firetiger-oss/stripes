@@ -113,6 +113,7 @@ func buildSliceSchema(t reflect.Type, rowIsPtr bool, opts *Options) (*schema, er
 		if err != nil {
 			return nil, fmt.Errorf("column %d (%q): %w", i, c.Header, err)
 		}
+		fn = withSuffix(fn, c.Suffix)
 		s.columns = append(s.columns, column{
 			header:     c.Header,
 			align:      a,
@@ -164,27 +165,23 @@ func buildColumn(f reflect.StructField, header string, mods []string, opts *Opti
 	col := column{header: header}
 
 	// Precedence 0: tag modifiers. They pin alignment and formatter.
-	if len(mods) > 0 {
-		// Struct tag syntax allows multiple comma-separated modifiers; in
-		// practice only the first one is meaningful today. Surface any
-		// extras as an error so silent typos don't hide.
-		mod := mods[0]
-		if len(mods) > 1 {
-			return col, fmt.Errorf("field %s: only one modifier supported, got %v", f.Name, mods)
-		}
-		fn, a, colorize, err := formatterForCell(f.Type, mod, opts)
-		if err != nil {
-			return col, fmt.Errorf("field %s: %w", f.Name, err)
-		}
-		col.format, col.align, col.colorize = fn, a, colorize
-		return col, nil
+	// First slot is the formatter modifier (or empty for the type default);
+	// an optional second slot is a literal suffix appended to every cell.
+	mod, suffix := "", ""
+	switch len(mods) {
+	case 0:
+	case 1:
+		mod = mods[0]
+	case 2:
+		mod, suffix = mods[0], mods[1]
+	default:
+		return col, fmt.Errorf("field %s: at most one formatter modifier and one suffix supported, got %v", f.Name, mods)
 	}
-
-	fn, a, colorize, err := formatterForCell(f.Type, "", opts)
+	fn, a, colorize, err := formatterForCell(f.Type, mod, opts)
 	if err != nil {
 		return col, fmt.Errorf("field %s: %w", f.Name, err)
 	}
-	col.format, col.align, col.colorize = fn, a, colorize
+	col.format, col.align, col.colorize = withSuffix(fn, suffix), a, colorize
 	return col, nil
 }
 
@@ -209,11 +206,16 @@ func formatterForCell(t reflect.Type, modifier string, opts *Options) (
 			return nil, alignLeft, nil, fmt.Errorf("'count' modifier requires int or uint, got %s", t)
 		}
 		return countFormatter(t.Kind()), alignRight, identityColorize, nil
-	case "percent":
+	case "%":
 		if !isFloatKind(t.Kind()) {
-			return nil, alignLeft, nil, fmt.Errorf("'percent' modifier requires float, got %s", t)
+			return nil, alignLeft, nil, fmt.Errorf("'%%' modifier requires float, got %s", t)
 		}
 		return percentFormatter, alignRight, identityColorize, nil
+	case "%%":
+		if !isFloatKind(t.Kind()) {
+			return nil, alignLeft, nil, fmt.Errorf("'%%%%' modifier requires float, got %s", t)
+		}
+		return ratioFormatter, alignRight, identityColorize, nil
 	default:
 		return nil, alignLeft, nil, fmt.Errorf("unknown modifier %q", modifier)
 	}
@@ -540,13 +542,13 @@ func humanBytes(n int64) string {
 		return "-" + humanBytes(-n)
 	}
 	if n < 1024 {
-		return strconv.FormatInt(n, 10) + " B"
+		return strconv.FormatInt(n, 10) + "B"
 	}
 	units := []string{"KiB", "MiB", "GiB", "TiB", "PiB", "EiB"}
 	f := float64(n) / 1024
 	for i, u := range units {
 		if f < 1024 || i == len(units)-1 {
-			return fmt.Sprintf("%.1f %s", f, u)
+			return fmt.Sprintf("%.1f%s", f, u)
 		}
 		f /= 1024
 	}
@@ -579,7 +581,7 @@ func humanCount(n int64) string {
 	f := float64(n) / 1000
 	for i, u := range units {
 		if f < 1000 || i == len(units)-1 {
-			return fmt.Sprintf("%.1f %s", f, u)
+			return fmt.Sprintf("%.1f%s", f, u)
 		}
 		f /= 1000
 	}
@@ -587,7 +589,27 @@ func humanCount(n int64) string {
 }
 
 func percentFormatter(v reflect.Value) string {
-	return fmt.Sprintf("%.1f %%", v.Float()*100)
+	return fmt.Sprintf("%.1f%%", v.Float())
+}
+
+// withSuffix wraps fn so its output has suffix appended, except for empty
+// strings (preserved so blank cells stay blank for alignment). When suffix
+// is empty, fn is returned unchanged.
+func withSuffix(fn func(reflect.Value) string, suffix string) func(reflect.Value) string {
+	if suffix == "" {
+		return fn
+	}
+	return func(v reflect.Value) string {
+		s := fn(v)
+		if s == "" {
+			return ""
+		}
+		return s + suffix
+	}
+}
+
+func ratioFormatter(v reflect.Value) string {
+	return fmt.Sprintf("%.1f%%", v.Float()*100)
 }
 
 // formatRow turns a single T value into the per-column string slice for
