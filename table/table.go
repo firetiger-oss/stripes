@@ -315,6 +315,18 @@ func (s *schema) render(rows [][]string, opts *Options) string {
 	}
 
 	bordered := opts.Border != (lipgloss.Border{})
+
+	// Apply per-column colorization (e.g. JSON token highlighting) before
+	// width fitting. fitToWidth measures with lipgloss.Width, which strips
+	// ANSI, so per-column budgets are still computed against visible width;
+	// truncation in fit.go is ANSI-aware and emits a defensive SGR reset
+	// before the ellipsis so styles never leak past the cut.
+	for _, r := range rows {
+		for i := 0; i < len(r) && i < len(s.columns); i++ {
+			r[i] = s.columns[i].colorize(r[i])
+		}
+	}
+
 	if styles != nil && styles.Width > 0 {
 		rows = fitToWidth(headers, rows, styles.Width, bordered)
 	}
@@ -330,14 +342,6 @@ func (s *schema) render(rows [][]string, opts *Options) string {
 	}
 	if s.shape == rowSlice {
 		detectNumericAlignment(rows, alignments)
-	}
-
-	// Apply per-column colorization (e.g. JSON token highlighting) after
-	// fitting, so truncation operates on plain text.
-	for _, r := range rows {
-		for i := 0; i < len(r) && i < len(s.columns); i++ {
-			r[i] = s.columns[i].colorize(r[i])
-		}
 	}
 
 	t = t.Headers(headers...)

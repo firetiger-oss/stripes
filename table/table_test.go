@@ -479,12 +479,12 @@ func TestTruncateHelper(t *testing.T) {
 	}{
 		{"hello", "hello", 10},
 		{"hello", "hello", 5},
-		{"helloworld", "he...", 5},
+		{"helloworld", "he\x1b[0m...", 5},
 		{"helloworld", "hel", 3},
 		{"hello", "he", 2},
 		{"", "", 5},
 		{"abcdefghij", "abcdefghij", 10},
-		{"abcdefghij", "abcdef...", 9},
+		{"abcdefghij", "abcdef\x1b[0m...", 9},
 	}
 	for _, c := range cases {
 		got := truncate(c.in, c.width)
@@ -555,9 +555,43 @@ func TestRenderJSONCellWithTruncation(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "\x1b[1mTAGS\x1b[0m                          \n" +
-		"\x1b[1;37m[\x1b[0m\x1b[32m\"administrator\"\x1b[0m\x1b[1;37m,\x1b[0m\x1b[32m\"operation...\x1b[0m\n" +
+		"\x1b[1;37m[\x1b[0m\x1b[32m\"administrator\"\x1b[0m\x1b[1;37m,\x1b[0m\x1b[32m\"operation\x1b[0m...\x1b[0m\x1b[1;37m\x1b[0m\x1b[32m\x1b[0m\x1b[1;37m\x1b[0m\x1b[32m\x1b[0m\x1b[1;37m\x1b[0m\n" +
 		"\x1b[1;37m[\x1b[0m\x1b[32m\"viewer\"\x1b[0m\x1b[1;37m]\x1b[0m                    "
 	equal(t, buf.String(), want)
+}
+
+// TestRenderJSONCellTruncationNoStyleLeak guards the invariant that the
+// ellipsis is unstyled and no SGR state leaks past the cell boundary
+// into column padding or the next column. Palette-independent: it
+// looks for the defensive SGR reset right before "..." and compares
+// the ANSI-stripped row against the expected visible text.
+func TestRenderJSONCellTruncationNoStyleLeak(t *testing.T) {
+	forceColor(t)
+	type Row struct {
+		Tags []string
+	}
+	rows := []Row{
+		{Tags: []string{"administrator", "operations", "billing", "support"}},
+	}
+	var buf bytes.Buffer
+	if err := Write[Row](&buf, seq2Of(rows), WithStyles(widthStyles(30))); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "\x1b[0m...") {
+		t.Errorf("expected SGR reset immediately before ellipsis; raw output:\n%q", out)
+	}
+	lines := strings.Split(ansi.Strip(out), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected at least 2 lines, got %d: %q", len(lines), lines)
+	}
+	dataLine := lines[1]
+	if !strings.HasSuffix(strings.TrimRight(dataLine, " "), "...") {
+		t.Errorf("expected visible cell to end in '...', got %q", dataLine)
+	}
+	if w := ansi.StringWidth(dataLine); w > 30 {
+		t.Errorf("visible width %d exceeds budget 30: %q", w, dataLine)
+	}
 }
 
 func TestRenderColumnStyleOnStruct(t *testing.T) {
