@@ -449,7 +449,7 @@ func timeFormatter(opts *Options) func(reflect.Value) string {
 		if t.IsZero() {
 			return ""
 		}
-		return t.Format(time.DateTime)
+		return t.Format("2006/01/02 15:04:05")
 	}
 }
 

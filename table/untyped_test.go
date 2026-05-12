@@ -60,7 +60,7 @@ func TestUntypedAnyMixedTypes(t *testing.T) {
 	}
 	got := ansi.Strip(Format[[]any](seqOf(rows), WithHeaders("N", "S", "T")))
 	want := "N   S      T                  \n" +
-		"42  hello  2026-05-11 10:23:45\n" +
+		"42  hello  2026/05/11 10:23:45\n" +
 		" 7  world                     "
 	equal(t, got, want)
 }
