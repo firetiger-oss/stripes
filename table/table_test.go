@@ -275,7 +275,7 @@ func TestRenderTagCountRejectsFloat(t *testing.T) {
 
 func TestRenderTagPercent(t *testing.T) {
 	type Row struct {
-		Pct float64 `table:"PCT,%"`
+		Pct float64 `table:"PCT,0-100%"`
 	}
 	got := render([]Row{
 		{Pct: 0.1},
@@ -288,7 +288,7 @@ func TestRenderTagPercent(t *testing.T) {
 
 func TestRenderTagRatio(t *testing.T) {
 	type Row struct {
-		Ratio float64 `table:"RATIO,%%"`
+		Ratio float64 `table:"RATIO,0-1%"`
 	}
 	got := render([]Row{
 		{Ratio: 0.001},
@@ -297,6 +297,28 @@ func TestRenderTagRatio(t *testing.T) {
 	})
 	want := "RATIO \n  0.1%\n100.0%\n 42.0%"
 	equal(t, got, want)
+}
+
+func TestRenderTagPercentArbitraryRange(t *testing.T) {
+	// 100-200% maps [100, 200] linearly onto [0, 100]%, so 150 → 50%.
+	type Row struct {
+		Load float64 `table:"LOAD,100-200%"`
+	}
+	got := render([]Row{
+		{Load: 100},
+		{Load: 150},
+		{Load: 200},
+	})
+	want := "LOAD  \n  0.0%\n 50.0%\n100.0%"
+	equal(t, got, want)
+}
+
+func TestRenderTagPercentInvalidFormat(t *testing.T) {
+	type Row struct {
+		Pct float64 `table:",%"`
+	}
+	_, err := renderWrite([]Row{{Pct: 0.5}})
+	equalErr(t, err, `field Pct: invalid percent modifier "%": expected {min}-{max}%`)
 }
 
 func TestRenderTagBytesRejectsFloat(t *testing.T) {
@@ -309,10 +331,10 @@ func TestRenderTagBytesRejectsFloat(t *testing.T) {
 
 func TestRenderTagPercentRejectsInt(t *testing.T) {
 	type Row struct {
-		Pct int `table:",%"`
+		Pct int `table:",0-100%"`
 	}
 	_, err := renderWrite([]Row{{Pct: 50}})
-	equalErr(t, err, "field Pct: '%' modifier requires float, got int")
+	equalErr(t, err, `field Pct: "0-100%" modifier requires float, got int`)
 }
 
 func TestRenderTagUnknownModifier(t *testing.T) {

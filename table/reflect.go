@@ -193,29 +193,28 @@ func buildColumn(f reflect.StructField, header string, mods []string, opts *Opti
 func formatterForCell(t reflect.Type, modifier string, opts *Options) (
 	func(reflect.Value) string, align, func(string) string, error,
 ) {
-	switch modifier {
-	case "":
+	switch {
+	case modifier == "":
 		// Fall through to type-based dispatch below.
-	case "bytes":
+	case modifier == "bytes":
 		if !isIntOrUintKind(t.Kind()) {
 			return nil, alignLeft, nil, fmt.Errorf("'bytes' modifier requires int or uint, got %s", t)
 		}
 		return bytesFormatter(t.Kind()), alignRight, identityColorize, nil
-	case "count":
+	case modifier == "count":
 		if !isIntOrUintKind(t.Kind()) {
 			return nil, alignLeft, nil, fmt.Errorf("'count' modifier requires int or uint, got %s", t)
 		}
 		return countFormatter(t.Kind()), alignRight, identityColorize, nil
-	case "%":
+	case strings.HasSuffix(modifier, "%"):
 		if !isFloatKind(t.Kind()) {
-			return nil, alignLeft, nil, fmt.Errorf("'%%' modifier requires float, got %s", t)
+			return nil, alignLeft, nil, fmt.Errorf("%q modifier requires float, got %s", modifier, t)
 		}
-		return percentFormatter, alignRight, identityColorize, nil
-	case "%%":
-		if !isFloatKind(t.Kind()) {
-			return nil, alignLeft, nil, fmt.Errorf("'%%%%' modifier requires float, got %s", t)
+		min, max, err := parsePercentRange(modifier)
+		if err != nil {
+			return nil, alignLeft, nil, err
 		}
-		return ratioFormatter, alignRight, identityColorize, nil
+		return scaledPercentFormatter(min, max), alignRight, identityColorize, nil
 	default:
 		return nil, alignLeft, nil, fmt.Errorf("unknown modifier %q", modifier)
 	}
@@ -588,8 +587,38 @@ func humanCount(n int64) string {
 	return ""
 }
 
-func percentFormatter(v reflect.Value) string {
-	return fmt.Sprintf("%.1f%%", v.Float())
+// scaledPercentFormatter returns a formatter that linearly maps values from
+// [min, max] onto [0, 100]%. min and max may be equal-signed or straddle
+// zero; only the case min == max is rejected (by parsePercentRange).
+func scaledPercentFormatter(min, max float64) func(reflect.Value) string {
+	span := max - min
+	return func(v reflect.Value) string {
+		return fmt.Sprintf("%.1f%%", (v.Float()-min)/span*100)
+	}
+}
+
+// parsePercentRange decodes a "{min}-{max}%" tag modifier. The trailing
+// `%` is the dispatch marker for the percent formatter; the dash separates
+// the two bounds. Negative bounds are not supported — the first '-' is
+// always the separator.
+func parsePercentRange(modifier string) (min, max float64, err error) {
+	body := strings.TrimSuffix(modifier, "%")
+	minS, maxS, ok := strings.Cut(body, "-")
+	if !ok {
+		return 0, 0, fmt.Errorf("invalid percent modifier %q: expected {min}-{max}%%", modifier)
+	}
+	min, err = strconv.ParseFloat(minS, 64)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid percent modifier %q: bad min %q", modifier, minS)
+	}
+	max, err = strconv.ParseFloat(maxS, 64)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid percent modifier %q: bad max %q", modifier, maxS)
+	}
+	if min == max {
+		return 0, 0, fmt.Errorf("invalid percent modifier %q: min and max must differ", modifier)
+	}
+	return min, max, nil
 }
 
 // withSuffix wraps fn so its output has suffix appended, except for empty
@@ -606,10 +635,6 @@ func withSuffix(fn func(reflect.Value) string, suffix string) func(reflect.Value
 		}
 		return s + suffix
 	}
-}
-
-func ratioFormatter(v reflect.Value) string {
-	return fmt.Sprintf("%.1f%%", v.Float()*100)
 }
 
 // formatRow turns a single T value into the per-column string slice for

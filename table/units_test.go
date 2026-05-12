@@ -107,6 +107,8 @@ func TestParseTag(t *testing.T) {
 		{",bytes", "", []string{"bytes"}},
 		{",bytes,%", "", []string{"bytes", "%"}},
 		{"NAME,bytes,%", "NAME", []string{"bytes", "%"}},
+		{"NAME,0-100%", "NAME", []string{"0-100%"}},
+		{"NAME,0-1%,/req", "NAME", []string{"0-1%", "/req"}},
 	}
 	for _, c := range cases {
 		name, mods := parseTag(c.in)
@@ -144,48 +146,83 @@ func TestAlignmentForType(t *testing.T) {
 	}
 }
 
-func TestPercentFormatter(t *testing.T) {
+func TestScaledPercentFormatter(t *testing.T) {
 	cases := []struct {
-		in   float64
-		want string
+		min, max float64
+		in       float64
+		want     string
 	}{
-		{0, "0.0%"},
-		{0.1, "0.1%"},
-		{10, "10.0%"},
-		{42, "42.0%"},
-		{100, "100.0%"},
-		{150, "150.0%"},
-		{-25, "-25.0%"},
-		{math.NaN(), "NaN%"},
+		// 0-100%: identity scaling, like the old "%" modifier.
+		{0, 100, 0, "0.0%"},
+		{0, 100, 0.1, "0.1%"},
+		{0, 100, 10, "10.0%"},
+		{0, 100, 42, "42.0%"},
+		{0, 100, 100, "100.0%"},
+		{0, 100, 150, "150.0%"},
+		{0, 100, -25, "-25.0%"},
+		{0, 100, math.NaN(), "NaN%"},
+		// 0-1%: ratio-to-percent, like the old "%%" modifier.
+		{0, 1, 0, "0.0%"},
+		{0, 1, 0.001, "0.1%"},
+		{0, 1, 0.1, "10.0%"},
+		{0, 1, 0.42, "42.0%"},
+		{0, 1, 1.0, "100.0%"},
+		{0, 1, 1.5, "150.0%"},
+		{0, 1, -0.25, "-25.0%"},
+		{0, 1, math.NaN(), "NaN%"},
+		// Arbitrary ranges.
+		{0, 10, 5, "50.0%"},
+		{100, 200, 150, "50.0%"},
+		{100, 200, 100, "0.0%"},
+		{100, 200, 200, "100.0%"},
+		// Reversed range: high value → low percent.
+		{1, 0, 0.25, "75.0%"},
 	}
 	for _, c := range cases {
 		v := reflect.ValueOf(c.in)
-		got := percentFormatter(v)
+		got := scaledPercentFormatter(c.min, c.max)(v)
 		if got != c.want {
-			t.Errorf("percentFormatter(%v) = %q, want %q", c.in, got, c.want)
+			t.Errorf("scaledPercentFormatter(%v, %v)(%v) = %q, want %q", c.min, c.max, c.in, got, c.want)
 		}
 	}
 }
 
-func TestRatioFormatter(t *testing.T) {
+func TestParsePercentRange(t *testing.T) {
 	cases := []struct {
-		in   float64
-		want string
+		in       string
+		min, max float64
+		errSubs  string // substring of err.Error(), or "" for success
 	}{
-		{0, "0.0%"},
-		{0.001, "0.1%"},
-		{0.1, "10.0%"},
-		{0.42, "42.0%"},
-		{1.0, "100.0%"},
-		{1.5, "150.0%"},
-		{-0.25, "-25.0%"},
-		{math.NaN(), "NaN%"},
+		{"0-100%", 0, 100, ""},
+		{"0-1%", 0, 1, ""},
+		{"100-200%", 100, 200, ""},
+		{"0-10%", 0, 10, ""},
+		{"0.5-1.5%", 0.5, 1.5, ""},
+		{"1-0%", 1, 0, ""}, // reversed is allowed
+		{"%", 0, 0, "expected {min}-{max}%"},
+		{"5%", 0, 0, "expected {min}-{max}%"},
+		{"5-5%", 0, 0, "min and max must differ"},
+		{"abc-1%", 0, 0, "bad min"},
+		{"0-xyz%", 0, 0, "bad max"},
 	}
 	for _, c := range cases {
-		v := reflect.ValueOf(c.in)
-		got := ratioFormatter(v)
-		if got != c.want {
-			t.Errorf("ratioFormatter(%v) = %q, want %q", c.in, got, c.want)
+		min, max, err := parsePercentRange(c.in)
+		if c.errSubs == "" {
+			if err != nil {
+				t.Errorf("parsePercentRange(%q) unexpected error: %v", c.in, err)
+				continue
+			}
+			if min != c.min || max != c.max {
+				t.Errorf("parsePercentRange(%q) = (%v, %v), want (%v, %v)", c.in, min, max, c.min, c.max)
+			}
+		} else {
+			if err == nil {
+				t.Errorf("parsePercentRange(%q) expected error containing %q, got nil", c.in, c.errSubs)
+				continue
+			}
+			if !strings.Contains(err.Error(), c.errSubs) {
+				t.Errorf("parsePercentRange(%q) error = %q, want substring %q", c.in, err.Error(), c.errSubs)
+			}
 		}
 	}
 }
