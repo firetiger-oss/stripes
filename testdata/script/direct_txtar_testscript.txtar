@@ -1,0 +1,26 @@
+# Txtar archive whose leading comment is itself a testscript-style file.
+# With --color=never the script highlighter has nothing to emit, but the
+# textual structure (lines, markers, embedded JSON formatting) must round
+# trip identically.
+unquote input.txtar expected.txt
+exec stripes --color=never -p cat --format=txtar input.txtar
+cmp stdout expected.txt
+
+-- input.txtar --
+># --color=always forces ANSI even when stdout is a pipe.
+>exec stripes --color=always -p cat input.json
+>stdout '\x1b\['
+>
+>-- input.json --
+>{
+>  "a": 1
+>}
+-- expected.txt --
+># --color=always forces ANSI even when stdout is a pipe.
+>exec stripes --color=always -p cat input.json
+>stdout '\x1b\['
+>
+>-- input.json --
+>{
+>  "a": 1
+>}

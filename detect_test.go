@@ -86,6 +86,10 @@ func TestDetect(t *testing.T) {
 		{"data.PARQUET", "x", "application/vnd.apache.parquet"},
 		{"", "PAR1\x00\x00\x00", "application/vnd.apache.parquet"},
 		{"unknown.bin", "PAR1\x00\x00\x00", "application/vnd.apache.parquet"},
+
+		// txtar
+		{"foo.txtar", "x", "text/x-txtar"},
+		{"archive.TXTAR", "x", "text/x-txtar"},
 	}
 
 	for _, tt := range tests {

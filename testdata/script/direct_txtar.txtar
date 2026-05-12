@@ -1,0 +1,28 @@
+# Txtar archive pretty-printed via explicit --format flag.
+# Each "-- name --" marker is preserved and each embedded file is routed
+# through the renderer matched by its filename: hello.txt stays as plain
+# text, data.json is JSON-pretty-printed.
+unquote input.txtar expected.txt
+exec stripes --color=never -p cat --format=txtar input.txtar
+cmp stdout expected.txt
+
+-- input.txtar --
+>A short comment at the top
+>of the archive.
+>
+>-- hello.txt --
+>hello world
+>-- data.json --
+>{"a":1,"b":[2,3]}
+-- expected.txt --
+>A short comment at the top
+>of the archive.
+>
+>-- hello.txt --
+>hello world
+>
+>-- data.json --
+>{
+>  "a": 1,
+>  "b": [2, 3]
+>}
