@@ -4,7 +4,7 @@
   <img width="300" height="255" alt="stripes" src="stripes.png" />
 </p>
 
-Streaming pretty-printer for structured data formats — JSON, YAML, XML, HTML, CSV, Dockerfile, markdown, protobuf, plain text, source code (via [chroma](https://github.com/alecthomas/chroma)), WebAssembly — usable as a Go library or as a standalone CLI.
+Streaming pretty-printer for structured data formats — JSON, YAML, XML, HTML, CSV, Dockerfile, markdown, protobuf, plain text, source code (via [chroma](https://github.com/alecthomas/chroma)), txtar archives, WebAssembly — usable as a Go library or as a standalone CLI.
 
 ## Motivation
 
@@ -63,6 +63,7 @@ renderer := stripes.Func(ct, "")
 | `text/plain`             | [`Text`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Text)                                        |
 | `application/protobuf`   | [`Protobuf`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Protobuf)                                |
 | `application/wasm`       | [`Wasm`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Wasm) (requires `wasm2wat` from WABT)        |
+| `text/x-txtar`           | [`Txtar`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Txtar) (recursive per-file dispatch)        |
 | (passthrough)            | [`Plain`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Plain)                                      |
 
 All share the [`Renderer`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Renderer)
@@ -90,14 +91,14 @@ $ stripes --help
 Usage: stripes [flags] [file...]
 
 Pretty-print structured data (JSON, YAML, XML, HTML, CSV, Dockerfile, markdown,
-protobuf, text, source code, wasm) with ANSI colors and optional paging.
+protobuf, text, source code, txtar, wasm) with ANSI colors and optional paging.
 
 When multiple files are given, each is preceded by a centered rule
 (───── filename ─────) so the source is visible inline. --format,
 --content-type, and --schema apply to all of them.
 
 Flags:
-  -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|text|code|protobuf|wasm|auto (default auto)
+  -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|text|code|protobuf|txtar|wasm|auto (default auto)
       --content-type string   Override MIME type (e.g. application/vnd.foo+json)
       --schema string         Schema URL (protobuf full name)
       --color string          always|never|auto (default auto)

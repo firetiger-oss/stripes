@@ -65,6 +65,8 @@ func Func(contentType, schemaURL string) Renderer {
 		return Wasm
 	case "application/vnd.apache.parquet":
 		return Parquet
+	case "text/x-txtar":
+		return Txtar
 	default:
 		if strings.HasPrefix(mediaType, "text/") {
 			return Text

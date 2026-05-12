@@ -74,6 +74,8 @@ func detectByExtension(name string) string {
 		return "application/wasm"
 	case ".parquet":
 		return "application/vnd.apache.parquet"
+	case ".txtar":
+		return "text/x-txtar"
 	case ".wat", ".wast":
 		return "text/x-source-code; lang=wat"
 	}
