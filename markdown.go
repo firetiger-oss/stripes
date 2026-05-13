@@ -363,8 +363,18 @@ func renderList(w io.Writer, list *ast.List, ctx *mdContext) {
 		}
 		indent := strings.Repeat(" ", indentW)
 
+		bodyCtx := ctx
+		if ctx.width > 0 {
+			cloned := *ctx
+			cloned.width = ctx.width - indentW
+			if cloned.width < 1 {
+				cloned.width = 1
+			}
+			bodyCtx = &cloned
+		}
+
 		var body bytes.Buffer
-		renderListItemBody(&body, item, ctx)
+		renderListItemBody(&body, item, bodyCtx)
 		lines := strings.Split(strings.TrimRight(body.String(), "\n"), "\n")
 		for i, line := range lines {
 			if i > 0 {

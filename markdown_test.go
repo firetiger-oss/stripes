@@ -134,7 +134,12 @@ func TestMarkdown(t *testing.T) {
 		{
 			name:   "ordered list paragraph wraps with continuation indent",
 			input:  "1. first item that is a bit long maybe\n2. second item",
-			output: "1. first item that is a bit long\n   maybe\n2. second item",
+			output: "1. first item that is a bit\n   long maybe\n2. second item",
+		},
+		{
+			name:   "unordered list paragraph wraps within marker indent",
+			input:  "- this is a long bullet point that should wrap nicely when narrow",
+			output: "• this is a long bullet point\n  that should wrap nicely when\n  narrow",
 		},
 	}
 
@@ -142,10 +147,12 @@ func TestMarkdown(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var output strings.Builder
 			styles := DefaultStyles.Clone()
-			// Force a small width for the HR test deterministically.
-			if tt.name == "ordered list paragraph wraps with continuation indent" {
+			// Force a small width for list-wrap tests deterministically.
+			switch tt.name {
+			case "ordered list paragraph wraps with continuation indent",
+				"unordered list paragraph wraps within marker indent":
 				styles.Width = 30
-			} else {
+			default:
 				styles.Width = 80
 			}
 			Markdown(&output, strings.NewReader(tt.input), styles)
