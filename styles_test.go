@@ -3,7 +3,7 @@ package stripes
 import (
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 func TestStylesCloneIncludesAllFields(t *testing.T) {

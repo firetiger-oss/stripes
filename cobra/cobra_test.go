@@ -5,23 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/muesli/termenv"
 	"github.com/spf13/cobra"
 )
-
-// TestMain forces a TrueColor profile so styled output is deterministic
-// regardless of whether the test process has a TTY. Matches the pattern
-// used in code_test.go and line_numbers_test.go.
-func TestMain(m *testing.M) {
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	os.Exit(m.Run())
-}
 
 func TestRenderHelp(t *testing.T) {
 	tests := []struct {

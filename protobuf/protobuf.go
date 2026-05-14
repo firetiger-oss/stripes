@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/firetiger-oss/stripes"
 	"github.com/muesli/reflow/wordwrap"
 	"google.golang.org/protobuf/encoding/protowire"

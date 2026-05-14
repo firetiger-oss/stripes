@@ -6,9 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/muesli/termenv"
 )
 
 // passThrough is a minimal Renderer that copies src to w verbatim. It
@@ -98,9 +97,6 @@ func TestWithLineNumbersTrailingNewlineNotPhantomLine(t *testing.T) {
 }
 
 func TestWithLineNumbersStyledOutputContainsANSI(t *testing.T) {
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(termenv.Ascii) })
-
 	styles := DefaultStyles.Clone()
 	var buf bytes.Buffer
 	WithLineNumbers(passThrough)(&buf, strings.NewReader("hello\n"), styles)
@@ -115,9 +111,6 @@ func TestWithLineNumbersStyledOutputContainsANSI(t *testing.T) {
 }
 
 func TestWithLineNumbersPreservesInnerANSI(t *testing.T) {
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(termenv.Ascii) })
-
 	// Inner renderer that emits its own styled content. We verify that the
 	// adapter doesn't strip or corrupt the inner ANSI sequences.
 	innerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
@@ -194,20 +187,14 @@ func benchmarkWithLineNumbers(b *testing.B, n int, styles *Styles) {
 }
 
 func BenchmarkWithLineNumbersSmall(b *testing.B) {
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	b.Cleanup(func() { lipgloss.SetColorProfile(termenv.Ascii) })
 	benchmarkWithLineNumbers(b, 10, DefaultStyles)
 }
 
 func BenchmarkWithLineNumbersMedium(b *testing.B) {
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	b.Cleanup(func() { lipgloss.SetColorProfile(termenv.Ascii) })
 	benchmarkWithLineNumbers(b, 1_000, DefaultStyles)
 }
 
 func BenchmarkWithLineNumbersLarge(b *testing.B) {
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	b.Cleanup(func() { lipgloss.SetColorProfile(termenv.Ascii) })
 	benchmarkWithLineNumbers(b, 100_000, DefaultStyles)
 }
 

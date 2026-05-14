@@ -4,7 +4,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // Renderer writes styled output for a single input format. All format

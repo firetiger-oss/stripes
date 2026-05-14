@@ -6,13 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/firetiger-oss/stripes"
 	_ "github.com/firetiger-oss/stripes/code"
 	_ "github.com/firetiger-oss/stripes/json"
 	_ "github.com/firetiger-oss/stripes/yaml"
-	"github.com/muesli/termenv"
 )
 
 func TestRenderRender(t *testing.T) {
@@ -116,9 +115,6 @@ func TestTxtarDispatchByFilename(t *testing.T) {
 	// Each embedded file should be routed through Detect+Func, so a .go file
 	// receives chroma highlighting (visible as ANSI escapes) while a .txt file
 	// passes through Plain or Text (no chroma highlighting in the body).
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(termenv.Ascii) })
-
 	input := `-- code.go --
 package main
 
@@ -194,9 +190,6 @@ func TestLooksLikeTestscript(t *testing.T) {
 }
 
 func TestTxtarTestscriptHighlighting(t *testing.T) {
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(termenv.Ascii) })
-
 	input := `# --color=always forces ANSI even when stdout is a pipe.
 exec stripes --color=always -p cat input.json
 stdout '\x1b\['

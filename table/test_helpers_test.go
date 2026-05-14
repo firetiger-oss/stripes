@@ -5,9 +5,7 @@ import (
 	"iter"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/muesli/termenv"
 )
 
 // seqOf turns a slice into an iter.Seq[T].
@@ -44,15 +42,6 @@ func renderWrite[T any](rows []T, opts ...Option) (string, error) {
 	var buf bytes.Buffer
 	err := Write[T](&buf, seq2Of(rows), opts...)
 	return ansi.Strip(buf.String()), err
-}
-
-// forceColor flips the lipgloss profile to TrueColor for the test and
-// resets it on cleanup, so the renderer emits ANSI escape sequences even
-// when the test process isn't attached to a terminal.
-func forceColor(t *testing.T) {
-	t.Helper()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(termenv.Ascii) })
 }
 
 // equal asserts strict equality between got and want. On mismatch it

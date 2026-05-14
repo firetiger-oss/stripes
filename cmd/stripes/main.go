@@ -25,11 +25,10 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/firetiger-oss/stripes"
 	_ "github.com/firetiger-oss/stripes/all"
-	"github.com/muesli/termenv"
 	"golang.org/x/term"
 )
 
@@ -151,8 +150,9 @@ func parseFlags(args []string) (*config, []string, error) {
 }
 
 func run(cfg *config, files []string) error {
-	styles := resolveStyles(cfg)
-	sink, finish := openSink(cfg, len(files))
+	styles, profile := resolveStyles(cfg)
+	rawSink, finish := openSink(cfg, len(files))
+	sink := &colorprofile.Writer{Forward: rawSink, Profile: profile}
 
 	if len(files) == 0 {
 		renderOne(sink, "", os.Stdin, cfg, styles)
@@ -220,8 +220,8 @@ func renderOne(sink io.Writer, name string, input io.Reader, cfg *config, styles
 
 // writeSeparator writes a labeled rule before a rendered file. The label is
 // centered between two runs of ─. Rendered through styles.Comment so it's
-// faint and doesn't compete with content; under termenv.Ascii Comment is a
-// no-op.
+// faint and doesn't compete with content; with color disabled Comment is the
+// zero-value style and emits no escapes.
 func writeSeparator(w io.Writer, name string, styles *stripes.Styles) {
 	width := styles.Width
 	if width <= 0 {
@@ -300,7 +300,10 @@ func formatToContentType(format string) string {
 	return ""
 }
 
-func resolveStyles(cfg *config) *stripes.Styles {
+// resolveStyles resolves the style set and the color profile to downsample
+// rendered output to. lipgloss v2 has no global color profile; callers wrap
+// their output writer in a colorprofile.Writer using the returned profile.
+func resolveStyles(cfg *config) (*stripes.Styles, colorprofile.Profile) {
 	enable := false
 	switch cfg.color {
 	case "always":
@@ -319,14 +322,12 @@ func resolveStyles(cfg *config) *stripes.Styles {
 	}
 
 	if !enable {
-		lipgloss.SetColorProfile(termenv.Ascii)
-		return &stripes.Styles{Indent: "  ", Width: width}
+		return &stripes.Styles{Indent: "  ", Width: width}, colorprofile.NoTTY
 	}
 
-	lipgloss.SetColorProfile(termenv.TrueColor)
 	s := loadStyles(cfg)
 	s.Width = width
-	return s
+	return s, colorprofile.TrueColor
 }
 
 // loadStyles resolves the color profile selection (flag > env > built-in

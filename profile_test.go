@@ -10,8 +10,7 @@ import (
 	"testing"
 
 	chromastyles "github.com/alecthomas/chroma/v2/styles"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	"charm.land/lipgloss/v2"
 )
 
 // renderProbe renders a fixed token through a lipgloss.Style. Two styles
@@ -61,21 +60,10 @@ func assertStylesEquivalent(t *testing.T, got, want *Styles) {
 	}
 }
 
-// withTrueColor pins the lipgloss color profile for the duration of a
-// test. Without this, lipgloss auto-detects (typically Ascii in CI),
-// which strips colors and makes equivalence checks meaningless.
-func withTrueColor(t *testing.T) {
-	t.Helper()
-	prev := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(prev) })
-}
-
 // TestBundledDefaultMatchesDefaultStyles guards against drift between the
 // Go literal stripes.DefaultStyles and the bundled assets/profiles/default.yaml.
 // They must produce identical visual output.
 func TestBundledDefaultMatchesDefaultStyles(t *testing.T) {
-	withTrueColor(t)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // make sure no real user config interferes
 
 	prof, err := LoadProfile("default")
@@ -87,7 +75,6 @@ func TestBundledDefaultMatchesDefaultStyles(t *testing.T) {
 }
 
 func TestAllBundledProfilesLoad(t *testing.T) {
-	withTrueColor(t)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	for _, name := range ListProfiles() {
 		t.Run(name, func(t *testing.T) {
@@ -309,7 +296,6 @@ func TestLoadProfileMalformedYAMLErrors(t *testing.T) {
 }
 
 func TestProfileToStylesAttributes(t *testing.T) {
-	withTrueColor(t)
 	p := &Profile{
 		Styles: ProfileStyles{
 			Title: StyleSpec{Color: "#abcdef", Bold: true, Faint: true, Italic: true, Underline: true},
