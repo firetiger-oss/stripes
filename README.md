@@ -4,7 +4,7 @@
   <img width="300" height="255" alt="stripes" src="stripes.png" />
 </p>
 
-Streaming pretty-printer for structured data formats — JSON, YAML, XML, HTML, CSV, Dockerfile, markdown, protobuf, plain text, source code (via [chroma](https://github.com/alecthomas/chroma)), txtar archives, WebAssembly — usable as a Go library or as a standalone CLI.
+Streaming pretty-printer for structured data formats — JSON, YAML, XML, HTML, CSV, Dockerfile, markdown, protobuf, parquet, plain text, source code (via [chroma](https://github.com/alecthomas/chroma)), txtar archives, WebAssembly — usable as a Go library or as a standalone CLI.
 
 ## Motivation
 
@@ -62,6 +62,7 @@ renderer := stripes.Func(ct, "")
 | `text/x-source-code`     | [`Code`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Code) (factory; pass chroma lexer name)      |
 | `text/plain`             | [`Text`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Text)                                        |
 | `application/protobuf`   | [`Protobuf`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Protobuf)                                |
+| `application/vnd.apache.parquet` | [`Parquet`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Parquet)                          |
 | `application/wasm`       | [`Wasm`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Wasm) (requires `wasm2wat` from WABT)        |
 | `text/x-txtar`           | [`Txtar`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Txtar) (recursive per-file dispatch)        |
 | (passthrough)            | [`Plain`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Plain)                                      |
@@ -80,6 +81,97 @@ Pass [`stripes.DefaultStyles`](https://pkg.go.dev/github.com/firetiger-oss/strip
 for the built-in grayscale theme, a `Clone()` to customize, or `&stripes.Styles{}`
 for unstyled output.
 
+## [stripes/table](https://pkg.go.dev/github.com/firetiger-oss/stripes/table)
+
+Render typed iterators of struct values as styled CLI tables. Columns are
+derived by reflection from exported fields: headers come from field names
+(or a `table:"NAME"` tag), cell formatters from field types
+(`time.Time`/`time.Duration` get dedicated formats, numerics are
+right-aligned). Tag modifiers like `table:",bytes"`, `table:",count"`, and
+`table:",0-100%"` pin specific formatters and suffixes.
+
+```go
+import (
+    "iter"
+    "os"
+    "time"
+
+    "github.com/firetiger-oss/stripes/table"
+)
+
+type Pod struct {
+    Name     string
+    Status   string
+    Restarts int
+    Memory   int64 `table:"MEM,bytes"`
+    Age      time.Time
+}
+
+func render(seq iter.Seq2[Pod, error]) error {
+    return table.Write(os.Stdout, seq, table.WithNow(time.Now))
+}
+```
+
+`Write` / `Format` are one-shot helpers; `NewWriter[T]` / `NewFormatter[T]`
+precompute the schema and are appropriate for hot loops. For non-struct
+rows (`[]string`, `[]any`, …) pass [`WithColumns`](https://pkg.go.dev/github.com/firetiger-oss/stripes/table#WithColumns)
+or [`WithHeaders`](https://pkg.go.dev/github.com/firetiger-oss/stripes/table#WithHeaders).
+Borders, viewports/scrollbars, row selectors, and per-cell or per-row
+style callbacks are available via the
+[`Option`](https://pkg.go.dev/github.com/firetiger-oss/stripes/table#Option)
+constructors.
+
+## [stripes/cobra](https://pkg.go.dev/github.com/firetiger-oss/stripes/cobra)
+
+Drop-in styled help, usage, and error output for CLIs built with
+[`spf13/cobra`](https://github.com/spf13/cobra). The palette is sourced
+from [`stripes.DefaultStyles`](https://pkg.go.dev/github.com/firetiger-oss/stripes#DefaultStyles)
+so help text matches the rest of the project's output. ANSI is downgraded
+or stripped automatically when stdout/stderr is not a terminal.
+
+```go
+import (
+    "context"
+    "errors"
+    "os"
+
+    "github.com/spf13/cobra"
+
+    stripescobra "github.com/firetiger-oss/stripes/cobra"
+)
+
+func main() {
+    root := &cobra.Command{
+        Use:   "mytool",
+        Short: "A demo CLI",
+    }
+    root.PersistentFlags().StringP("config", "c", "/etc/mytool.cfg", "config `file` path")
+
+    root.AddCommand(&cobra.Command{
+        Use:   "serve",
+        Short: "Start the server",
+        RunE: func(*cobra.Command, []string) error {
+            return errors.New("not implemented")
+        },
+    })
+
+    if err := stripescobra.Execute(context.Background(), root); err != nil {
+        os.Exit(1)
+    }
+}
+```
+
+[`Execute`](https://pkg.go.dev/github.com/firetiger-oss/stripes/cobra#Execute)
+installs styled help/usage/error rendering on `root` and every subcommand
+before calling `root.ExecuteContext`. Use
+[`Apply`](https://pkg.go.dev/github.com/firetiger-oss/stripes/cobra#Apply)
+to install the renderers without running the command. The palette,
+output writers, and error handler are overridable via
+[`WithStyles`](https://pkg.go.dev/github.com/firetiger-oss/stripes/cobra#WithStyles),
+[`WithOutput`](https://pkg.go.dev/github.com/firetiger-oss/stripes/cobra#WithOutput),
+[`WithErrorOutput`](https://pkg.go.dev/github.com/firetiger-oss/stripes/cobra#WithErrorOutput),
+and [`WithErrorHandler`](https://pkg.go.dev/github.com/firetiger-oss/stripes/cobra#WithErrorHandler).
+
 ## CLI
 
 ```
@@ -91,26 +183,39 @@ $ stripes --help
 Usage: stripes [flags] [file...]
 
 Pretty-print structured data (JSON, YAML, XML, HTML, CSV, Dockerfile, markdown,
-protobuf, text, source code, txtar, wasm) with ANSI colors and optional paging.
+protobuf, parquet, text, source code, txtar, wasm) with ANSI colors and optional paging.
 
 When multiple files are given, each is preceded by a centered rule
 (───── filename ─────) so the source is visible inline. --format,
 --content-type, and --schema apply to all of them.
 
 Flags:
-  -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|text|code|protobuf|txtar|wasm|auto (default auto)
+  -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|text|code|protobuf|parquet|txtar|wasm|table|auto (default auto)
+                              "table" routes CSV/TSV/JSONL/parquet through the
+                              new typed-table renderer with width-fitting,
+                              JSON-cell colorization, and (for parquet) schema-
+                              driven column formatting.
       --content-type string   Override MIME type (e.g. application/vnd.foo+json)
       --schema string         Schema URL (protobuf full name)
       --color string          always|never|auto (default auto)
-      --paging string         always|never|auto (default auto). Auto only
-                              spawns the pager when the rendered output is
-                              wider or taller than the terminal, or when
-                              more than one file is rendered.
-  -w, --width int             Output width (default: terminal width or 100)
+      --paging string         always|never|auto (default auto). In "auto",
+                              the pager is spawned only when the rendered
+                              output is wider or taller than the terminal,
+                              or when more than one file is rendered.
+      --profile string        Color profile name or path. Bare names resolve
+                              against $XDG_CONFIG_HOME/stripes/profiles
+                              (~/.config/stripes/profiles) and the built-in
+                              set. A value containing "/" or ending in
+                              .yaml/.yml is loaded as a file directly.
+  -w, --width int             Output width in columns. 0 (default) =
+                              auto-detect from the terminal; falls back
+                              to no wrap when stdout is not a TTY.
   -p, --pager string          Pager command (e.g. "less -R", "bat --plain").
                               Use --paging=never to bypass paging.
+  -n, --line-numbers          Show line numbers in a left-aligned gutter.
 
 Pager resolution: -p flag > $STRIPES_PAGER > $PAGER > "less -R"
+Profile resolution: --profile flag > $STRIPES_PROFILE > built-in default
 Color is auto-disabled when NO_COLOR is set or stdout is not a terminal.
 ```
 
