@@ -1,0 +1,26 @@
+# go.mod pretty-printed via explicit --format flag.
+exec stripes --color=never -p cat --format=gomod input.txt
+cmp stdout expected.txt
+
+-- input.txt --
+module example.com/foo
+
+go 1.22
+
+require (
+	example.com/a v1.0.0
+	example.com/b v0.0.0-20240101120000-abcdef123456 // indirect
+)
+
+replace example.com/a => ../a
+-- expected.txt --
+module example.com/foo
+
+go 1.22
+
+require (
+	example.com/a v1.0.0
+	example.com/b v0.0.0-20240101120000-abcdef123456 // indirect
+)
+
+replace example.com/a => ../a

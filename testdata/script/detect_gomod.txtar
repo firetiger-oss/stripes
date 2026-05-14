@@ -1,0 +1,49 @@
+# Auto-detection by filename: go.mod, go.sum, go.work, go.work.sum, vendor/modules.txt.
+exec stripes --color=never -p cat go.mod
+cmp stdout expected_gomod.txt
+
+exec stripes --color=never -p cat go.sum
+cmp stdout expected_gosum.txt
+
+exec stripes --color=never -p cat go.work
+cmp stdout expected_gowork.txt
+
+exec stripes --color=never -p cat go.work.sum
+cmp stdout expected_gosum.txt
+
+exec stripes --color=never -p cat vendor/modules.txt
+cmp stdout expected_modulestxt.txt
+
+-- go.mod --
+module example.com/foo
+
+go 1.22
+-- expected_gomod.txt --
+module example.com/foo
+
+go 1.22
+-- go.sum --
+example.com/a v1.0.0 h1:aaa=
+example.com/a v1.0.0/go.mod h1:bbb=
+-- expected_gosum.txt --
+example.com/a v1.0.0 h1:aaa=
+example.com/a v1.0.0/go.mod h1:bbb=
+-- go.work --
+go 1.22
+
+use ./foo
+-- expected_gowork.txt --
+go 1.22
+
+use ./foo
+-- go.work.sum --
+example.com/a v1.0.0 h1:aaa=
+example.com/a v1.0.0/go.mod h1:bbb=
+-- vendor/modules.txt --
+# example.com/a v1.0.0
+## explicit
+example.com/a
+-- expected_modulestxt.txt --
+# example.com/a v1.0.0
+## explicit
+example.com/a

@@ -31,6 +31,17 @@ func TestDetect(t *testing.T) {
 		{"foo.dockerfile", "x", "text/x-dockerfile"},
 		{"path/to/Dockerfile", "x", "text/x-dockerfile"},
 
+		// Go module toolchain files
+		{"go.mod", "x", "text/x-go-mod"},
+		{"path/to/go.mod", "x", "text/x-go-mod"},
+		{"go.sum", "x", "text/x-go-sum"},
+		{"go.work.sum", "x", "text/x-go-sum"},
+		{"go.work", "x", "text/x-go-work"},
+		{"vendor/modules.txt", "x", "text/x-go-vendor-modules"},
+		{"path/to/vendor/modules.txt", "x", "text/x-go-vendor-modules"},
+		{"notvendor/modules.txt", "x", "text/plain"},
+		{"modules.txt", "x", "text/plain"},
+
 		// sniffing — JSON
 		{"", `{"a":1}`, "application/json"},
 		{"", "  \n  [1,2,3]", "application/json"},

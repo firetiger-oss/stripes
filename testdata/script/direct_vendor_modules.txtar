@@ -1,0 +1,20 @@
+# vendor/modules.txt pretty-printed via explicit --format flag.
+exec stripes --color=never -p cat --format=modulestxt input.txt
+cmp stdout expected.txt
+
+-- input.txt --
+# example.com/a v1.0.0
+## explicit; go 1.21
+example.com/a
+example.com/a/sub
+# example.com/b v2.0.0 => ../b
+## explicit
+example.com/b
+-- expected.txt --
+# example.com/a v1.0.0
+## explicit; go 1.21
+example.com/a
+example.com/a/sub
+# example.com/b v2.0.0 => ../b
+## explicit
+example.com/b
