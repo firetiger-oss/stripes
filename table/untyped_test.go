@@ -80,14 +80,13 @@ func TestUntypedAnyJSONColorize(t *testing.T) {
 	// even though the column's static type is `any`: anyCellFormatter
 	// wraps the per-cell formatter with colorizeJSON when the dynamic
 	// type is a JSON-fallback shape (slice/array/map/struct).
-	forceColor(t)
 	var buf bytes.Buffer
 	rows := [][]any{{[]string{"x", "y"}}}
 	if err := Write[[]any](&buf, seq2Of(rows), WithHeaders("V")); err != nil {
 		t.Fatal(err)
 	}
-	want := "\x1b[1mV\x1b[0m        \n" +
-		"\x1b[1;37m[\x1b[0m\x1b[32m\"x\"\x1b[0m\x1b[1;37m,\x1b[0m\x1b[32m\"y\"\x1b[0m\x1b[1;37m]\x1b[0m"
+	want := "\x1b[1mV\x1b[m        \n" +
+		"\x1b[1;37m[\x1b[m\x1b[32m\"x\"\x1b[m\x1b[1;37m,\x1b[m\x1b[32m\"y\"\x1b[m\x1b[1;37m]\x1b[m"
 	equal(t, buf.String(), want)
 }
 

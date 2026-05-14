@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/firetiger-oss/stripes"
 	"golang.org/x/tools/txtar"
 )
@@ -128,23 +129,20 @@ func renderTxtarFile(w io.Writer, f txtar.File, styles *stripes.Styles) {
 }
 
 // writeTrimmedLines writes body to w with trailing whitespace stripped
-// from each line and any trailing blank lines removed. ANSI escape
-// sequences never contain '\n' or spaces past their final byte, so a
-// simple per-line right-trim is safe even on colored output.
+// from each line and any trailing blank lines removed. A line counts as
+// blank when it holds no visible content — a line of only ANSI escapes
+// (which lipgloss emits for empty styled lines) is treated as blank too.
 func writeTrimmedLines(w io.Writer, body []byte) {
-	body = bytes.TrimRight(body, " \t\n")
-	for len(body) > 0 {
-		nl := bytes.IndexByte(body, '\n')
-		var line []byte
-		if nl < 0 {
-			line, body = body, nil
-		} else {
-			line, body = body[:nl], body[nl+1:]
-		}
-		w.Write(bytes.TrimRight(line, " \t"))
-		if nl >= 0 {
+	lines := strings.Split(string(body), "\n")
+	end := len(lines)
+	for end > 0 && strings.TrimRight(ansi.Strip(lines[end-1]), " \t") == "" {
+		end--
+	}
+	for i := 0; i < end; i++ {
+		if i > 0 {
 			io.WriteString(w, "\n")
 		}
+		io.WriteString(w, strings.TrimRight(lines[i], " \t"))
 	}
 }
 

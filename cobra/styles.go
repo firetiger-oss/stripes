@@ -1,7 +1,7 @@
 package cobra
 
 import (
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 
 	"github.com/firetiger-oss/stripes"
 )

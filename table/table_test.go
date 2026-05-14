@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/firetiger-oss/stripes"
 )
@@ -544,12 +544,12 @@ func TestTruncateHelper(t *testing.T) {
 	}{
 		{"hello", "hello", 10},
 		{"hello", "hello", 5},
-		{"helloworld", "he\x1b[0m...", 5},
+		{"helloworld", "he\x1b[m...", 5},
 		{"helloworld", "hel", 3},
 		{"hello", "he", 2},
 		{"", "", 5},
 		{"abcdefghij", "abcdefghij", 10},
-		{"abcdefghij", "abcdef\x1b[0m...", 9},
+		{"abcdefghij", "abcdef\x1b[m...", 9},
 	}
 	for _, c := range cases {
 		got := truncate(c.in, c.width)
@@ -560,7 +560,6 @@ func TestTruncateHelper(t *testing.T) {
 }
 
 func TestRenderHeaderBoldANSI(t *testing.T) {
-	forceColor(t)
 	type Row struct {
 		Name string
 	}
@@ -568,12 +567,11 @@ func TestRenderHeaderBoldANSI(t *testing.T) {
 	if err := Write[Row](&buf, seq2Of([]Row{{Name: "alice"}})); err != nil {
 		t.Fatal(err)
 	}
-	want := "\x1b[1mNAME\x1b[0m \nalice"
+	want := "\x1b[1mNAME\x1b[m \nalice"
 	equal(t, buf.String(), want)
 }
 
 func TestRenderJSONCellHasInlineANSI(t *testing.T) {
-	forceColor(t)
 	type Row struct {
 		Tags []string
 	}
@@ -581,8 +579,8 @@ func TestRenderJSONCellHasInlineANSI(t *testing.T) {
 	if err := Write[Row](&buf, seq2Of([]Row{{Tags: []string{"admin", "ops"}}})); err != nil {
 		t.Fatal(err)
 	}
-	want := "\x1b[1mTAGS\x1b[0m           \n" +
-		"\x1b[1;37m[\x1b[0m\x1b[32m\"admin\"\x1b[0m\x1b[1;37m,\x1b[0m\x1b[32m\"ops\"\x1b[0m\x1b[1;37m]\x1b[0m"
+	want := "\x1b[1mTAGS\x1b[m           \n" +
+		"\x1b[1;37m[\x1b[m\x1b[32m\"admin\"\x1b[m\x1b[1;37m,\x1b[m\x1b[32m\"ops\"\x1b[m\x1b[1;37m]\x1b[m"
 	equal(t, buf.String(), want)
 }
 
@@ -607,7 +605,6 @@ func TestColorizeJSONTolerantOfTruncation(t *testing.T) {
 }
 
 func TestRenderJSONCellWithTruncation(t *testing.T) {
-	forceColor(t)
 	type Row struct {
 		Tags []string
 	}
@@ -619,9 +616,9 @@ func TestRenderJSONCellWithTruncation(t *testing.T) {
 	if err := Write[Row](&buf, seq2Of(rows), WithStyles(widthStyles(30))); err != nil {
 		t.Fatal(err)
 	}
-	want := "\x1b[1mTAGS\x1b[0m                          \n" +
-		"\x1b[1;37m[\x1b[0m\x1b[32m\"administrator\"\x1b[0m\x1b[1;37m,\x1b[0m\x1b[32m\"operation\x1b[0m...\x1b[0m\x1b[1;37m\x1b[0m\x1b[32m\x1b[0m\x1b[1;37m\x1b[0m\x1b[32m\x1b[0m\x1b[1;37m\x1b[0m\n" +
-		"\x1b[1;37m[\x1b[0m\x1b[32m\"viewer\"\x1b[0m\x1b[1;37m]\x1b[0m                    "
+	want := "\x1b[1mTAGS\x1b[m                          \n" +
+		"\x1b[1;37m[\x1b[m\x1b[32m\"administrator\"\x1b[m\x1b[1;37m,\x1b[m\x1b[32m\"operation\x1b[m...\x1b[m\x1b[1;37m\x1b[m\x1b[32m\x1b[m\x1b[1;37m\x1b[m\x1b[32m\x1b[m\x1b[1;37m\x1b[m\n" +
+		"\x1b[1;37m[\x1b[m\x1b[32m\"viewer\"\x1b[m\x1b[1;37m]\x1b[m                    "
 	equal(t, buf.String(), want)
 }
 
@@ -631,7 +628,6 @@ func TestRenderJSONCellWithTruncation(t *testing.T) {
 // looks for the defensive SGR reset right before "..." and compares
 // the ANSI-stripped row against the expected visible text.
 func TestRenderJSONCellTruncationNoStyleLeak(t *testing.T) {
-	forceColor(t)
 	type Row struct {
 		Tags []string
 	}
@@ -643,7 +639,7 @@ func TestRenderJSONCellTruncationNoStyleLeak(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	if !strings.Contains(out, "\x1b[0m...") {
+	if !strings.Contains(out, "\x1b[m...") {
 		t.Errorf("expected SGR reset immediately before ellipsis; raw output:\n%q", out)
 	}
 	lines := strings.Split(ansi.Strip(out), "\n")
@@ -660,7 +656,6 @@ func TestRenderJSONCellTruncationNoStyleLeak(t *testing.T) {
 }
 
 func TestRenderColumnStyleOnStruct(t *testing.T) {
-	forceColor(t)
 	type Row struct {
 		Name   string
 		Status string
@@ -678,14 +673,13 @@ func TestRenderColumnStyleOnStruct(t *testing.T) {
 			return lipgloss.NewStyle()
 		}),
 	)
-	want := "\x1b[1mNAME\x1b[0m   \x1b[1mSTATUS\x1b[0m  \x1b[1mCOUNT\x1b[0m\n" +
-		"alice  \x1b[48;2;255;0;102mok\x1b[0m\x1b[48;2;255;0;102m  \x1b[0m\x1b[48;2;255;0;102m    \x1b[0m    3\n" +
-		"bob    \x1b[48;2;255;0;102mfail\x1b[0m\x1b[48;2;255;0;102m  \x1b[0m\x1b[48;2;255;0;102m  \x1b[0m    1"
+	want := "\x1b[1mNAME\x1b[m   \x1b[1mSTATUS\x1b[m  \x1b[1mCOUNT\x1b[m\n" +
+		"alice  \x1b[48;2;255;0;102mok\x1b[m\x1b[48;2;255;0;102m  \x1b[m\x1b[48;2;255;0;102m    \x1b[m    3\n" +
+		"bob    \x1b[48;2;255;0;102mfail\x1b[m\x1b[48;2;255;0;102m  \x1b[m\x1b[48;2;255;0;102m  \x1b[m    1"
 	equal(t, got, want)
 }
 
 func TestRenderColumnStyleOnSlice(t *testing.T) {
-	forceColor(t)
 	rows := [][]string{
 		{"alice", "ok"},
 		{"bob", "fail"},
@@ -699,14 +693,13 @@ func TestRenderColumnStyleOnSlice(t *testing.T) {
 			return lipgloss.NewStyle()
 		}),
 	)
-	want := "\x1b[1mNAME\x1b[0m   \x1b[1mSTATUS\x1b[0m\n" +
-		"alice  \x1b[48;2;255;0;102mok\x1b[0m\x1b[48;2;255;0;102m    \x1b[0m\n" +
-		"bob    \x1b[48;2;255;0;102mfail\x1b[0m\x1b[48;2;255;0;102m  \x1b[0m"
+	want := "\x1b[1mNAME\x1b[m   \x1b[1mSTATUS\x1b[m\n" +
+		"alice  \x1b[48;2;255;0;102mok\x1b[m\x1b[48;2;255;0;102m    \x1b[m\n" +
+		"bob    \x1b[48;2;255;0;102mfail\x1b[m\x1b[48;2;255;0;102m  \x1b[m"
 	equal(t, got, want)
 }
 
 func TestRenderColumnStyleComposesWithColorizeJSON(t *testing.T) {
-	forceColor(t)
 	type Row struct {
 		Tags []string
 	}
@@ -717,7 +710,7 @@ func TestRenderColumnStyleComposesWithColorizeJSON(t *testing.T) {
 	)
 	// JSON-token ANSI must still be present inside the cell, AND the
 	// outer lipgloss background must wrap it.
-	if !strings.Contains(got, "\x1b[32m\"ops\"\x1b[0m") {
+	if !strings.Contains(got, "\x1b[32m\"ops\"\x1b[m") {
 		t.Errorf("missing JSON string-token ANSI in output: %q", got)
 	}
 	if !strings.Contains(got, "\x1b[48;2;51;102;255m") {
@@ -726,7 +719,6 @@ func TestRenderColumnStyleComposesWithColorizeJSON(t *testing.T) {
 }
 
 func TestRenderHeaderStyleInheritsBold(t *testing.T) {
-	forceColor(t)
 	type Row struct {
 		Name   string
 		Status string
@@ -741,12 +733,11 @@ func TestRenderHeaderStyleInheritsBold(t *testing.T) {
 	)
 	// Header col 0 keeps plain bold; col 1 is bold + background (Inherit
 	// composes the user's background with the default bold).
-	want := "\x1b[1mNAME\x1b[0m   \x1b[1;48;2;51;102;255mSTATUS\x1b[0m\nalice  ok    "
+	want := "\x1b[1mNAME\x1b[m   \x1b[1;48;2;51;102;255mSTATUS\x1b[m\nalice  ok    "
 	equal(t, got, want)
 }
 
 func TestRenderRowStyleAlternating(t *testing.T) {
-	forceColor(t)
 	type Row struct {
 		Name string
 	}
@@ -759,16 +750,15 @@ func TestRenderRowStyleAlternating(t *testing.T) {
 			return lipgloss.NewStyle()
 		}),
 	)
-	want := "\x1b[1mNAME\x1b[0m\n" +
+	want := "\x1b[1mNAME\x1b[m\n" +
 		"a   \n" +
-		"\x1b[48;2;34;34;34mb\x1b[0m\x1b[48;2;34;34;34m   \x1b[0m\n" +
+		"\x1b[48;2;34;34;34mb\x1b[m\x1b[48;2;34;34;34m   \x1b[m\n" +
 		"c   \n" +
-		"\x1b[48;2;34;34;34md\x1b[0m\x1b[48;2;34;34;34m   \x1b[0m"
+		"\x1b[48;2;34;34;34md\x1b[m\x1b[48;2;34;34;34m   \x1b[m"
 	equal(t, got, want)
 }
 
 func TestRenderRowAndColumnStyleCompose(t *testing.T) {
-	forceColor(t)
 	type Row struct {
 		Name   string
 		Status string

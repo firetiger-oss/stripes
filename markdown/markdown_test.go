@@ -4,10 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/firetiger-oss/stripes"
-	"github.com/muesli/termenv"
 )
 
 func TestRender(t *testing.T) {
@@ -16,6 +14,10 @@ func TestRender(t *testing.T) {
 		name   string
 		input  string
 		output string
+		// bare renders with an unstyled Styles{} (color off) instead of
+		// DefaultStyles. Used by cases that exercise the no-color path,
+		// e.g. links degrade to "text (url)" rather than OSC 8 hyperlinks.
+		bare bool
 	}{
 		{
 			name:   "heading h1",
@@ -76,6 +78,7 @@ func TestRender(t *testing.T) {
 			name:   "link with distinct text",
 			input:  "[Anthropic](https://anthropic.com)",
 			output: "Anthropic (https://anthropic.com)",
+			bare:   true,
 		},
 		{
 			name:   "link text equals url collapses",
@@ -153,6 +156,9 @@ func TestRender(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var output strings.Builder
 			styles := stripes.DefaultStyles.Clone()
+			if tt.bare {
+				styles = &stripes.Styles{}
+			}
 			// Force a small width for list-wrap tests deterministically.
 			switch tt.name {
 			case "ordered list paragraph wraps with continuation indent",
@@ -343,11 +349,6 @@ func TestMarkdownTableLongTokenFallback(t *testing.T) {
 }
 
 func TestMarkdownCodeBlockChromaColor(t *testing.T) {
-	// Force lipgloss to emit ANSI so chroma path activates.
-	prev := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	defer lipgloss.SetColorProfile(prev)
-
 	styles := stripes.DefaultStyles.Clone()
 	var buf strings.Builder
 	Render(&buf, strings.NewReader("```go\npackage main\n\nfunc main() {}\n```\n"), styles)
@@ -388,10 +389,6 @@ func TestMarkdownNoColorPath(t *testing.T) {
 }
 
 func TestMarkdownLinkOSC8(t *testing.T) {
-	prev := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	defer lipgloss.SetColorProfile(prev)
-
 	styles := stripes.DefaultStyles.Clone()
 	var buf strings.Builder
 	Render(&buf, strings.NewReader("Pick a [Renderer](https://example.com/r) here."), styles)
@@ -414,10 +411,6 @@ func TestMarkdownLinkOSC8(t *testing.T) {
 }
 
 func TestMarkdownAutolinkOSC8(t *testing.T) {
-	prev := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	defer lipgloss.SetColorProfile(prev)
-
 	styles := stripes.DefaultStyles.Clone()
 	var buf strings.Builder
 	Render(&buf, strings.NewReader("see <https://example.com>"), styles)
@@ -433,10 +426,6 @@ func TestMarkdownAutolinkOSC8(t *testing.T) {
 func TestMarkdownLinkWrapAccountsForOSC8Width(t *testing.T) {
 	// The OSC 8 wrapper inserts URL bytes that must NOT count toward the
 	// visible width when wrapping a paragraph.
-	prev := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	defer lipgloss.SetColorProfile(prev)
-
 	styles := stripes.DefaultStyles.Clone()
 	styles.Width = 80
 	input := "Pass stripes.DefaultStyles for the [built-in](https://example.com/very/long/url) grayscale theme, a Clone() to customize, or &stripes.Styles{} for unstyled output."

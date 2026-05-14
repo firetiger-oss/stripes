@@ -22,8 +22,8 @@ import (
 	"iter"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
-	lipglosstable "github.com/charmbracelet/lipgloss/table"
+	"charm.land/lipgloss/v2"
+	lipglosstable "charm.land/lipgloss/v2/table"
 	"github.com/firetiger-oss/stripes"
 )
 

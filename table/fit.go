@@ -1,7 +1,7 @@
 package table
 
 import (
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -105,7 +105,7 @@ func fitToWidth(headers []string, rows [][]string, targetWidth int, bordered boo
 // is room. The input may contain ANSI SGR escape sequences (e.g. from
 // colorizeJSON); width is counted in visible columns via ansi.Truncate.
 //
-// The ellipsis tail is prefixed with an SGR reset ("\x1b[0m...") so an
+// The ellipsis tail is prefixed with an SGR reset ("\x1b[m...") so an
 // open style from a token that the cut lands inside cannot paint the
 // "...". Lipgloss style.Render emits matched open/close SGR pairs per
 // token, so any sequences ansi.Truncate continues to pass through after
@@ -121,5 +121,5 @@ func truncate(s string, width int) string {
 	if width <= len(ellipsis) {
 		return ansi.Truncate(s, width, "")
 	}
-	return ansi.Truncate(s, width, "\x1b[0m"+ellipsis)
+	return ansi.Truncate(s, width, "\x1b[m"+ellipsis)
 }

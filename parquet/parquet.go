@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"unicode/utf8"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/table"
 	"github.com/firetiger-oss/stripes"
 	"github.com/parquet-go/parquet-go"
 )

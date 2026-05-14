@@ -6,10 +6,8 @@ import (
 	"testing"
 
 	"github.com/alecthomas/chroma/v2"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/firetiger-oss/stripes"
-	"github.com/muesli/termenv"
 )
 
 func TestCodeNoColor(t *testing.T) {
@@ -25,9 +23,6 @@ func TestCodeNoColor(t *testing.T) {
 }
 
 func TestCodeColorEmitsANSI(t *testing.T) {
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(termenv.Ascii) })
-
 	src := "package main\n\nfunc main() { println(\"hi\") }\n"
 	var buf bytes.Buffer
 	New("Go")(&buf, strings.NewReader(src), stripes.DefaultStyles)

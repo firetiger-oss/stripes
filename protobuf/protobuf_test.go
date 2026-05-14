@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/firetiger-oss/stripes"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	logsv1 "go.opentelemetry.io/proto/otlp/logs/v1"
@@ -171,7 +172,7 @@ nanos: 500000000
 			renderer := New(desc, protoregistry.GlobalTypes)
 			renderer(&buf, reader, stripes.DefaultStyles)
 
-			got := buf.String()
+			got := ansi.Strip(buf.String())
 			if got != tt.expected {
 				t.Errorf("Expected:\n%q\nGot:\n%q", tt.expected, got)
 			}
@@ -209,7 +210,7 @@ func TestProtobufWireFormat(t *testing.T) {
 			renderer := New(nil, nil)
 			renderer(&buf, reader, stripes.DefaultStyles)
 
-			got := buf.String()
+			got := ansi.Strip(buf.String())
 			if got != tt.expected {
 				t.Errorf("Expected:\n%q\nGot:\n%q", tt.expected, got)
 			}

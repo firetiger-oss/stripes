@@ -12,15 +12,15 @@ import (
 	"sort"
 	"strings"
 
+	"charm.land/lipgloss/v2"
+	lgtable "charm.land/lipgloss/v2/table"
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/formatters"
 	chromalexers "github.com/alecthomas/chroma/v2/lexers"
 	chromastyles "github.com/alecthomas/chroma/v2/styles"
-	"github.com/charmbracelet/lipgloss"
-	lgtable "github.com/charmbracelet/lipgloss/table"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/clipperhouse/displaywidth"
 	"github.com/firetiger-oss/stripes"
-	"github.com/mattn/go-runewidth"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
@@ -378,7 +378,7 @@ func renderList(w io.Writer, list *ast.List, ctx *mdContext) {
 		if marker != "" {
 			styledMarker = ctx.styles.Syntax.Render(marker)
 		}
-		indentW := runewidth.StringWidth(marker)
+		indentW := displaywidth.String(marker)
 		if indentW == 0 {
 			indentW = 2
 		}
@@ -732,7 +732,10 @@ func renderInlineNode(w io.Writer, n ast.Node, ctx *mdContext) {
 		}
 		io.WriteString(w, styled)
 	case extast.KindStrikethrough:
-		text := plainInline(n, ctx)
+		// inlineText (plain) rather than plainInline (pre-styled): feeding a
+		// string that already contains ANSI escapes into Strikethrough().Render()
+		// corrupts the output under lipgloss v2.
+		text := inlineText(n, ctx.src)
 		io.WriteString(w, ctx.styles.Text.Strikethrough(true).Render(text))
 	case ast.KindLink:
 		l := n.(*ast.Link)

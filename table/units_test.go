@@ -307,12 +307,11 @@ func TestColorizeJSONShapes(t *testing.T) {
 }
 
 func TestColorizeJSONEmitsPerToken(t *testing.T) {
-	forceColor(t)
 	got := colorizeJSON(`{"a":1,"b":true,"c":null,"d":"x"}`, stripes.DefaultStyles)
-	want := "\x1b[1;37m{\x1b[0m\x1b[1;94m\"a\"\x1b[0m\x1b[1;37m:\x1b[0m\x1b[37m1\x1b[0m\x1b[1;37m,\x1b[0m" +
-		"\x1b[1;94m\"b\"\x1b[0m\x1b[1;37m:\x1b[0m\x1b[37mtrue\x1b[0m\x1b[1;37m,\x1b[0m" +
-		"\x1b[1;94m\"c\"\x1b[0m\x1b[1;37m:\x1b[0m\x1b[90mnull\x1b[0m\x1b[1;37m,\x1b[0m" +
-		"\x1b[1;94m\"d\"\x1b[0m\x1b[1;37m:\x1b[0m\x1b[32m\"x\"\x1b[0m\x1b[1;37m}\x1b[0m"
+	want := "\x1b[1;37m{\x1b[m\x1b[1;94m\"a\"\x1b[m\x1b[1;37m:\x1b[m\x1b[37m1\x1b[m\x1b[1;37m,\x1b[m" +
+		"\x1b[1;94m\"b\"\x1b[m\x1b[1;37m:\x1b[m\x1b[37mtrue\x1b[m\x1b[1;37m,\x1b[m" +
+		"\x1b[1;94m\"c\"\x1b[m\x1b[1;37m:\x1b[m\x1b[90mnull\x1b[m\x1b[1;37m,\x1b[m" +
+		"\x1b[1;94m\"d\"\x1b[m\x1b[1;37m:\x1b[m\x1b[32m\"x\"\x1b[m\x1b[1;37m}\x1b[m"
 	equal(t, got, want)
 }
 
