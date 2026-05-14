@@ -8,7 +8,7 @@ import (
 	"github.com/firetiger-oss/stripes"
 )
 
-func TestRenderGoMod(t *testing.T) {
+func TestRenderRenderMod(t *testing.T) {
 	tests := []struct {
 		name   string
 		input  string
@@ -114,10 +114,10 @@ this is not valid go.mod syntax @@@`,
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var output strings.Builder
-			GoMod(&output, strings.NewReader(tt.input), stripes.DefaultStyles)
+			RenderMod(&output, strings.NewReader(tt.input), stripes.DefaultStyles)
 			stripped := ansi.Strip(output.String())
 			if stripped != tt.output {
-				t.Errorf("GoMod() output mismatch\nInput:\n%s\nExpected:\n%q\nGot:\n%q",
+				t.Errorf("RenderMod() output mismatch\nInput:\n%s\nExpected:\n%q\nGot:\n%q",
 					tt.input, tt.output, stripped)
 			}
 		})

@@ -21,19 +21,19 @@ func init() {
 		Name:        "gomod",
 		ContentType: "text/x-go-mod",
 		Filenames:   []string{"go.mod"},
-		RendererFor: stripes.Simple(GoMod),
+		RendererFor: stripes.Simple(RenderMod),
 	})
 	stripes.Register(stripes.Format{
 		Name:        "gosum",
 		ContentType: "text/x-go-sum",
 		Filenames:   []string{"go.sum", "go.work.sum"},
-		RendererFor: stripes.Simple(GoSum),
+		RendererFor: stripes.Simple(RenderSum),
 	})
 	stripes.Register(stripes.Format{
 		Name:        "gowork",
 		ContentType: "text/x-go-work",
 		Filenames:   []string{"go.work"},
-		RendererFor: stripes.Simple(GoWork),
+		RendererFor: stripes.Simple(RenderWork),
 	})
 	stripes.Register(stripes.Format{
 		Name:        "modulestxt",
@@ -41,7 +41,7 @@ func init() {
 		MatchPath: func(p string) bool {
 			return filepath.Base(p) == "modules.txt" && filepath.Base(filepath.Dir(p)) == "vendor"
 		},
-		RendererFor: stripes.Simple(GoVendorModules),
+		RendererFor: stripes.Simple(RenderVendorModules),
 	})
 }
 
@@ -89,15 +89,16 @@ func scanQuoted(s string, i int) int {
 	return len(s)
 }
 
-// GoMod renders a go.mod file with ANSI styling applied to directive
-// keywords, module paths, versions, the `=>` replace operator, block
-// parentheses, and `//` comments.
+// RenderMod writes a styled rendering of the go.mod file read from r to
+// w, with ANSI styling applied to directive keywords, module paths,
+// versions, the `=>` replace operator, block parentheses, and `//`
+// comments.
 //
 // Parsing is done via golang.org/x/mod/modfile (lax mode), which handles
 // block syntax, factored require/replace/exclude/retract/tool lists,
 // inline comments, quoted module paths, and `// indirect` markers the
 // same way the Go toolchain does.
-func GoMod(w io.Writer, r io.Reader, styles *stripes.Styles) {
+func RenderMod(w io.Writer, r io.Reader, styles *stripes.Styles) {
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return

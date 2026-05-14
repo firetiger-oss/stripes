@@ -15,7 +15,7 @@ import (
 	"github.com/muesli/termenv"
 )
 
-func TestRenderTxtar(t *testing.T) {
+func TestRenderRender(t *testing.T) {
 	tests := []struct {
 		name   string
 		input  string
@@ -87,11 +87,11 @@ content`,
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var out strings.Builder
-			Txtar(&out, strings.NewReader(tt.input), stripes.DefaultStyles)
+			Render(&out, strings.NewReader(tt.input), stripes.DefaultStyles)
 			got := trimLineTails(ansi.Strip(out.String()))
 
 			if got != tt.output {
-				t.Errorf("Txtar() output mismatch\nInput:\n%s\nExpected:\n%q\nGot:\n%q", tt.input, tt.output, got)
+				t.Errorf("Render() output mismatch\nInput:\n%s\nExpected:\n%q\nGot:\n%q", tt.input, tt.output, got)
 			}
 		})
 	}
@@ -127,7 +127,7 @@ func main() {}
 plain text body
 `
 	var out strings.Builder
-	Txtar(&out, strings.NewReader(input), stripes.DefaultStyles)
+	Render(&out, strings.NewReader(input), stripes.DefaultStyles)
 	full := out.String()
 	plain := ansi.Strip(full)
 
@@ -159,7 +159,7 @@ func TestTxtarEmbeddedJSON(t *testing.T) {
 {"a":1,"b":2}
 `
 	var out strings.Builder
-	Txtar(&out, strings.NewReader(input), stripes.DefaultStyles)
+	Render(&out, strings.NewReader(input), stripes.DefaultStyles)
 	got := ansi.Strip(out.String())
 	body := got[strings.Index(got, "-- data.json --")+len("-- data.json --"):]
 	if !strings.Contains(body, "\n  \"a\"") || !strings.Contains(body, "\n  \"b\"") {
@@ -207,7 +207,7 @@ stdout '\x1b\['
 }
 `
 	var out strings.Builder
-	Txtar(&out, strings.NewReader(input), stripes.DefaultStyles)
+	Render(&out, strings.NewReader(input), stripes.DefaultStyles)
 	full := out.String()
 	plain := ansi.Strip(full)
 
@@ -244,7 +244,7 @@ stdout '\x1b\['
 		}
 	}
 }
-func BenchmarkTxtar(b *testing.B) {
+func BenchmarkRender(b *testing.B) {
 	input := []byte(`Leading comment with a sentence or two so the parser has
 something to do before reaching the first marker.
 
@@ -269,6 +269,6 @@ func main() {
 	b.SetBytes(int64(len(input)))
 	for b.Loop() {
 		r.Reset(input)
-		Txtar(io.Discard, r, stripes.DefaultStyles)
+		Render(io.Discard, r, stripes.DefaultStyles)
 	}
 }

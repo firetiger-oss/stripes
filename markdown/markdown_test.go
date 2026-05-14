@@ -10,7 +10,7 @@ import (
 	"github.com/muesli/termenv"
 )
 
-func TestMarkdown(t *testing.T) {
+func TestRender(t *testing.T) {
 	hr80 := strings.Repeat("─", 80)
 	tests := []struct {
 		name   string
@@ -156,10 +156,10 @@ func TestMarkdown(t *testing.T) {
 			default:
 				styles.Width = 80
 			}
-			Markdown(&output, strings.NewReader(tt.input), styles)
+			Render(&output, strings.NewReader(tt.input), styles)
 			stripped := ansi.Strip(output.String())
 			if stripped != tt.output {
-				t.Errorf("Markdown() output mismatch\nInput:    %q\nExpected: %q\nGot:      %q",
+				t.Errorf("Render() output mismatch\nInput:    %q\nExpected: %q\nGot:      %q",
 					tt.input, tt.output, stripped)
 			}
 		})
@@ -169,11 +169,11 @@ func TestMarkdown(t *testing.T) {
 func TestMarkdownEmptyDoesNotPanic(t *testing.T) {
 	defer func() {
 		if r := recover(); r != nil {
-			t.Errorf("Markdown() panicked on empty input: %v", r)
+			t.Errorf("Render() panicked on empty input: %v", r)
 		}
 	}()
 	var buf strings.Builder
-	Markdown(&buf, strings.NewReader(""), stripes.DefaultStyles)
+	Render(&buf, strings.NewReader(""), stripes.DefaultStyles)
 	if got := ansi.Strip(buf.String()); got != "" {
 		t.Errorf("expected empty output, got %q", got)
 	}
@@ -182,7 +182,7 @@ func TestMarkdownEmptyDoesNotPanic(t *testing.T) {
 func TestMarkdownStripsFrontmatter(t *testing.T) {
 	input := "---\nname: rollout\ndescription: \"SRE-grade change control\"\n---\n\n# Rollout\n\nUmbrella skill body."
 	var buf strings.Builder
-	Markdown(&buf, strings.NewReader(input), stripes.DefaultStyles)
+	Render(&buf, strings.NewReader(input), stripes.DefaultStyles)
 	got := ansi.Strip(buf.String())
 	for _, banned := range []string{"name:", "description:", "rollout\n", "SRE-grade"} {
 		if strings.Contains(got, banned) {
@@ -202,7 +202,7 @@ func TestMarkdownPreservesThematicBreakNotFrontmatter(t *testing.T) {
 	var buf strings.Builder
 	styles := stripes.DefaultStyles.Clone()
 	styles.Width = 40
-	Markdown(&buf, strings.NewReader(input), styles)
+	Render(&buf, strings.NewReader(input), styles)
 	got := ansi.Strip(buf.String())
 	if !strings.Contains(got, strings.Repeat("─", 40)) {
 		t.Errorf("expected thematic break (40-char rule) in output\nGot:\n%s", got)
@@ -214,7 +214,7 @@ func TestMarkdownLeavesUnclosedFrontmatterAlone(t *testing.T) {
 	// it (the file is not really frontmatter — keep current rendering).
 	input := "---\nsome: yaml\nbut no closing fence\n\n# Heading\n"
 	var buf strings.Builder
-	Markdown(&buf, strings.NewReader(input), stripes.DefaultStyles)
+	Render(&buf, strings.NewReader(input), stripes.DefaultStyles)
 	got := ansi.Strip(buf.String())
 	if !strings.Contains(got, "some") {
 		t.Errorf("unclosed frontmatter should pass through unchanged\nGot:\n%s", got)
@@ -225,7 +225,7 @@ func TestMarkdownParagraphWrap(t *testing.T) {
 	styles := stripes.DefaultStyles.Clone()
 	styles.Width = 20
 	var buf strings.Builder
-	Markdown(&buf, strings.NewReader("this is a long paragraph that should wrap when the width is small enough"), styles)
+	Render(&buf, strings.NewReader("this is a long paragraph that should wrap when the width is small enough"), styles)
 	got := ansi.Strip(buf.String())
 	want := "this is a long\nparagraph that\nshould wrap when the\nwidth is small\nenough"
 	if got != want {
@@ -236,7 +236,7 @@ func TestMarkdownParagraphWrap(t *testing.T) {
 func TestMarkdownTable(t *testing.T) {
 	input := "| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |"
 	var buf strings.Builder
-	Markdown(&buf, strings.NewReader(input), stripes.DefaultStyles)
+	Render(&buf, strings.NewReader(input), stripes.DefaultStyles)
 	got := ansi.Strip(buf.String())
 	for _, want := range []string{"a", "b", "1", "2", "3", "4", "─", "│"} {
 		if !strings.Contains(got, want) {
@@ -252,7 +252,7 @@ func TestMarkdownTableWraps(t *testing.T) {
 	styles := stripes.DefaultStyles.Clone()
 	styles.Width = 40
 	var buf strings.Builder
-	Markdown(&buf, strings.NewReader(input), styles)
+	Render(&buf, strings.NewReader(input), styles)
 	got := ansi.Strip(buf.String())
 
 	for _, want := range []string{"name", "description", "alpha", "beta", "fairly", "wrap"} {
@@ -272,7 +272,7 @@ func TestMarkdownTableNoStretch(t *testing.T) {
 	styles := stripes.DefaultStyles.Clone()
 	styles.Width = 80
 	var buf strings.Builder
-	Markdown(&buf, strings.NewReader(input), styles)
+	Render(&buf, strings.NewReader(input), styles)
 	got := ansi.Strip(buf.String())
 	for _, line := range strings.Split(got, "\n") {
 		if w := ansi.StringWidth(line); w >= styles.Width {
@@ -292,7 +292,7 @@ func TestMarkdownTableProportionalWidths(t *testing.T) {
 	styles := stripes.DefaultStyles.Clone()
 	styles.Width = 60
 	var buf strings.Builder
-	Markdown(&buf, strings.NewReader(input), styles)
+	Render(&buf, strings.NewReader(input), styles)
 	got := ansi.Strip(buf.String())
 
 	// No line should exceed the configured width.
@@ -320,7 +320,7 @@ func TestMarkdownTableLongTokenFallback(t *testing.T) {
 	styles := stripes.DefaultStyles.Clone()
 	styles.Width = 50
 	var buf strings.Builder
-	Markdown(&buf, strings.NewReader(input), styles)
+	Render(&buf, strings.NewReader(input), styles)
 	got := ansi.Strip(buf.String())
 
 	for _, line := range strings.Split(got, "\n") {
@@ -344,7 +344,7 @@ func TestMarkdownCodeBlockChromaColor(t *testing.T) {
 
 	styles := stripes.DefaultStyles.Clone()
 	var buf strings.Builder
-	Markdown(&buf, strings.NewReader("```go\npackage main\n\nfunc main() {}\n```\n"), styles)
+	Render(&buf, strings.NewReader("```go\npackage main\n\nfunc main() {}\n```\n"), styles)
 	out := buf.String()
 	if !strings.Contains(out, "\x1b[") {
 		t.Errorf("expected ANSI escapes from chroma, got: %q", out)
@@ -371,7 +371,7 @@ func TestMarkdownNoColorPath(t *testing.T) {
 	// stripped, fallback indents per line.
 	styles := &stripes.Styles{Indent: "  ", Width: 80}
 	var buf strings.Builder
-	Markdown(&buf, strings.NewReader("```go\nfmt.Println(\"x\")\n```\n"), styles)
+	Render(&buf, strings.NewReader("```go\nfmt.Println(\"x\")\n```\n"), styles)
 	out := buf.String()
 	if strings.Contains(out, "\x1b[") {
 		t.Errorf("expected no ANSI escapes, got: %q", out)
@@ -388,7 +388,7 @@ func TestMarkdownLinkOSC8(t *testing.T) {
 
 	styles := stripes.DefaultStyles.Clone()
 	var buf strings.Builder
-	Markdown(&buf, strings.NewReader("Pick a [Renderer](https://example.com/r) here."), styles)
+	Render(&buf, strings.NewReader("Pick a [Renderer](https://example.com/r) here."), styles)
 	out := buf.String()
 
 	// OSC 8 prelude with destination URL must be present.
@@ -414,7 +414,7 @@ func TestMarkdownAutolinkOSC8(t *testing.T) {
 
 	styles := stripes.DefaultStyles.Clone()
 	var buf strings.Builder
-	Markdown(&buf, strings.NewReader("see <https://example.com>"), styles)
+	Render(&buf, strings.NewReader("see <https://example.com>"), styles)
 	out := buf.String()
 	if !strings.Contains(out, "\x1b]8;;https://example.com\x1b\\") {
 		t.Errorf("expected OSC 8 wrapper, got: %q", out)
@@ -435,7 +435,7 @@ func TestMarkdownLinkWrapAccountsForOSC8Width(t *testing.T) {
 	styles.Width = 80
 	input := "Pass stripes.DefaultStyles for the [built-in](https://example.com/very/long/url) grayscale theme, a Clone() to customize, or &stripes.Styles{} for unstyled output."
 	var buf strings.Builder
-	Markdown(&buf, strings.NewReader(input), styles)
+	Render(&buf, strings.NewReader(input), styles)
 	want := "Pass stripes.DefaultStyles for the built-in grayscale theme, a Clone() to\ncustomize, or &stripes.Styles{} for unstyled output."
 	if got := ansi.Strip(buf.String()); got != want {
 		t.Errorf("wrap mismatch:\nwant: %q\n got: %q", want, got)

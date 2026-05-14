@@ -9,7 +9,7 @@ import (
 	"github.com/firetiger-oss/stripes"
 )
 
-func TestRenderJSON(t *testing.T) {
+func TestRenderRender(t *testing.T) {
 	tests := []struct {
 		name   string
 		input  string
@@ -120,13 +120,13 @@ func TestRenderJSON(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var output strings.Builder
 			input := strings.NewReader(tt.input)
-			JSON(&output, input, stripes.DefaultStyles)
+			Render(&output, input, stripes.DefaultStyles)
 			result := output.String()
 
 			// Strip ANSI codes for byte-for-byte comparison
 			stripped := ansi.Strip(result)
 			if stripped != tt.output {
-				t.Errorf("JSON() output mismatch\nInput: %s\nExpected:\n%s\nGot:\n%s\nActual (with ANSI):\n%s",
+				t.Errorf("Render() output mismatch\nInput: %s\nExpected:\n%s\nGot:\n%s\nActual (with ANSI):\n%s",
 					tt.input, tt.output, stripped, result)
 			}
 		})
@@ -140,7 +140,7 @@ func TestRenderJSONWithMultipleTopLevelValues(t *testing.T) {
 	input := `{"first": "object"}{"second": "object"}`
 	var output strings.Builder
 	reader := strings.NewReader(input)
-	JSON(&output, reader, stripes.DefaultStyles)
+	Render(&output, reader, stripes.DefaultStyles)
 	result := output.String()
 
 	// Should contain at least the first object (function might stop after first value)
@@ -157,12 +157,12 @@ func TestRenderJSONWithEmptyInput(t *testing.T) {
 	// Should not panic
 	defer func() {
 		if r := recover(); r != nil {
-			t.Errorf("JSON() panicked with empty input: %v", r)
+			t.Errorf("Render() panicked with empty input: %v", r)
 		}
 	}()
 
 	reader := strings.NewReader("")
-	JSON(&output, reader, stripes.DefaultStyles)
+	Render(&output, reader, stripes.DefaultStyles)
 	// Empty input should produce empty output or handle gracefully
 }
 
@@ -203,12 +203,12 @@ func TestRenderJSONWithNumbers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var output strings.Builder
 			reader := strings.NewReader(tt.input)
-			JSON(&output, reader, stripes.DefaultStyles)
+			Render(&output, reader, stripes.DefaultStyles)
 			result := output.String()
 
 			for _, expected := range tt.shouldContain {
 				if !strings.Contains(result, expected) {
-					t.Errorf("JSON() output missing expected content %q\nInput: %s\nActual output: %q",
+					t.Errorf("Render() output missing expected content %q\nInput: %s\nActual output: %q",
 						expected, tt.input, result)
 				}
 			}
@@ -221,7 +221,7 @@ func TestRenderJSONFormatting(t *testing.T) {
 	input := `{"nested":{"array":[1,2,3],"object":{"key":"value"}}}`
 	var output strings.Builder
 	reader := strings.NewReader(input)
-	JSON(&output, reader, stripes.DefaultStyles)
+	Render(&output, reader, stripes.DefaultStyles)
 	result := output.String()
 
 	// Should contain proper indentation (checking for some whitespace structure)
@@ -242,7 +242,7 @@ func TestRenderJSONFormatting(t *testing.T) {
 func TestRenderJSONNoTrailingWhitespace(t *testing.T) {
 	input := `{"name":"John","items":[{"x":1},{"y":2}],"empty_obj":{},"empty_arr":[]}`
 	var output strings.Builder
-	JSON(&output, strings.NewReader(input), stripes.DefaultStyles)
+	Render(&output, strings.NewReader(input), stripes.DefaultStyles)
 	stripped := ansi.Strip(output.String())
 
 	for i, line := range strings.Split(stripped, "\n") {
@@ -258,7 +258,7 @@ func TestJSONRenderingWithAllFields(t *testing.T) {
 
 	var output strings.Builder
 	reader := strings.NewReader(input)
-	JSON(&output, reader, stripes.DefaultStyles)
+	Render(&output, reader, stripes.DefaultStyles)
 	result := output.String()
 
 	// Strip ANSI codes for checking

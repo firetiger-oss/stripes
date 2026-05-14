@@ -8,7 +8,7 @@ import (
 	"github.com/firetiger-oss/stripes"
 )
 
-func TestRenderGoWork(t *testing.T) {
+func TestRenderRenderWork(t *testing.T) {
 	tests := []struct {
 		name   string
 		input  string
@@ -75,10 +75,10 @@ this is not valid go.work syntax @@@`,
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var output strings.Builder
-			GoWork(&output, strings.NewReader(tt.input), stripes.DefaultStyles)
+			RenderWork(&output, strings.NewReader(tt.input), stripes.DefaultStyles)
 			stripped := ansi.Strip(output.String())
 			if stripped != tt.output {
-				t.Errorf("GoWork() output mismatch\nInput:\n%s\nExpected:\n%q\nGot:\n%q",
+				t.Errorf("RenderWork() output mismatch\nInput:\n%s\nExpected:\n%q\nGot:\n%q",
 					tt.input, tt.output, stripped)
 			}
 		})

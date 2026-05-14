@@ -33,11 +33,12 @@ func init() {
 		Name:        "markdown",
 		ContentType: "text/markdown",
 		Extensions:  []string{".md", ".markdown"},
-		RendererFor: stripes.Simple(Markdown),
+		RendererFor: stripes.Simple(Render),
 	})
 }
 
-func Markdown(w io.Writer, r io.Reader, styles *stripes.Styles) {
+// Render writes a styled rendering of the Markdown read from r to w.
+func Render(w io.Writer, r io.Reader, styles *stripes.Styles) {
 	src, err := io.ReadAll(r)
 	if err != nil {
 		fmt.Fprintf(w, "ERROR: %s\n", err)

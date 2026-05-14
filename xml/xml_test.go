@@ -8,7 +8,7 @@ import (
 	"github.com/firetiger-oss/stripes"
 )
 
-func TestRenderXML(t *testing.T) {
+func TestRenderRender(t *testing.T) {
 	tests := []struct {
 		name   string
 		input  string
@@ -96,32 +96,32 @@ func TestRenderXML(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var output strings.Builder
 			reader := strings.NewReader(tt.input)
-			XML(&output, reader, stripes.DefaultStyles)
+			Render(&output, reader, stripes.DefaultStyles)
 			result := output.String()
 
 			// Strip ANSI codes for byte-for-byte comparison
 			stripped := ansi.Strip(result)
 			if stripped != tt.output {
-				t.Errorf("XML() output mismatch\nInput: %s\nExpected:\n%s\nGot:\n%s\nActual (with ANSI):\n%s",
+				t.Errorf("Render() output mismatch\nInput: %s\nExpected:\n%s\nGot:\n%s\nActual (with ANSI):\n%s",
 					tt.input, tt.output, stripped, result)
 			}
 		})
 	}
 }
 
-func TestRenderXMLWithInvalidXML(t *testing.T) {
+func TestRenderXMLWithInvalidRender(t *testing.T) {
 	// Test that invalid XML doesn't crash the function
 	var output strings.Builder
 
 	// Should not panic
 	defer func() {
 		if r := recover(); r != nil {
-			t.Errorf("XML() panicked with invalid XML: %v", r)
+			t.Errorf("Render() panicked with invalid XML: %v", r)
 		}
 	}()
 
 	reader := strings.NewReader("<invalid><unclosed>")
-	XML(&output, reader, stripes.DefaultStyles)
+	Render(&output, reader, stripes.DefaultStyles)
 	// Invalid XML should produce some output or handle gracefully
 }
 
@@ -132,12 +132,12 @@ func TestRenderXMLWithEmptyInput(t *testing.T) {
 	// Should not panic
 	defer func() {
 		if r := recover(); r != nil {
-			t.Errorf("XML() panicked with empty input: %v", r)
+			t.Errorf("Render() panicked with empty input: %v", r)
 		}
 	}()
 
 	reader := strings.NewReader("")
-	XML(&output, reader, stripes.DefaultStyles)
+	Render(&output, reader, stripes.DefaultStyles)
 	// Empty input should produce empty output
 	result := output.String()
 	if result != "" {
@@ -150,7 +150,7 @@ func TestRenderXMLStyling(t *testing.T) {
 	input := `<root id="test"><child>value</child></root>`
 	var output strings.Builder
 	reader := strings.NewReader(input)
-	XML(&output, reader, stripes.DefaultStyles)
+	Render(&output, reader, stripes.DefaultStyles)
 	result := output.String()
 
 	// Should contain styled elements (ANSI codes may not appear in test environment due to lipgloss auto-detection)

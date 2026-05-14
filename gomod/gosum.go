@@ -7,8 +7,8 @@ import (
 	"github.com/firetiger-oss/stripes"
 )
 
-// GoSum renders a go.sum (or go.work.sum) file with ANSI styling. Each
-// non-empty line has the shape:
+// RenderSum writes a styled rendering of the go.sum (or go.work.sum)
+// file read from r to w. Each non-empty line has the shape:
 //
 //	<module-path> <version>[/go.mod] <hash>
 //
@@ -17,7 +17,7 @@ import (
 // [stripes.Styles.Syntax]), and the hash as [stripes.Styles.Code].
 // Lines that don't match this shape fall back to plain
 // [stripes.Styles.Text] rendering.
-func GoSum(w io.Writer, r io.Reader, styles *stripes.Styles) {
+func RenderSum(w io.Writer, r io.Reader, styles *stripes.Styles) {
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return

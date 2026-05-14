@@ -18,13 +18,14 @@ func init() {
 		Name:        "csv",
 		ContentType: "text/csv",
 		Extensions:  []string{".csv"},
-		RendererFor: stripes.Simple(CSV),
+		RendererFor: stripes.Simple(Render),
 	})
 }
 
-// CSV renders comma-separated values as a styled lipgloss table.
-// Columns containing only numeric cells are right-aligned.
-func CSV(w io.Writer, r io.Reader, styles *stripes.Styles) {
+// Render writes the comma-separated values read from r to w as a styled
+// lipgloss table. Columns containing only numeric cells are
+// right-aligned.
+func Render(w io.Writer, r io.Reader, styles *stripes.Styles) {
 	width := styles.Width
 	if width <= 0 {
 		width = 80

@@ -21,7 +21,7 @@ func init() {
 		ContentType: "application/json",
 		Extensions:  []string{".json"},
 		Detect:      detectJSON,
-		RendererFor: stripes.Simple(JSON),
+		RendererFor: stripes.Simple(Render),
 	})
 }
 
@@ -31,10 +31,10 @@ type jsonContext struct {
 	indentStr   string // Indentation string per level
 }
 
-// JSON renders a JSON stream with ANSI styling. Each top-level value is
-// pretty-printed with the configured indent; non-string scalars never
-// wrap.
-func JSON(w io.Writer, r io.Reader, styles *stripes.Styles) {
+// Render writes a styled rendering of the JSON read from r to w. Each
+// top-level value is pretty-printed with the configured indent;
+// non-string scalars never wrap.
+func Render(w io.Writer, r io.Reader, styles *stripes.Styles) {
 	d := json.NewDecoder(r)
 	d.UseNumber()
 

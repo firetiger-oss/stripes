@@ -22,7 +22,7 @@ func init() {
 		Filenames:   []string{"Dockerfile", "Containerfile"},
 		Extensions:  []string{".dockerfile"},
 		Detect:      looksLikeDockerfile,
-		RendererFor: stripes.Simple(Dockerfile),
+		RendererFor: stripes.Simple(Render),
 	})
 }
 
@@ -91,14 +91,15 @@ func isNumber(s string) bool {
 	return false
 }
 
-// Dockerfile renders a Dockerfile (or Containerfile) with ANSI styling
-// applied to instruction keywords, comments, flags, quoted strings,
-// heredoc bodies, and line-continuation backslashes.
+// Render writes a styled rendering of the Dockerfile (or Containerfile)
+// read from r to w, with ANSI styling applied to instruction keywords,
+// comments, flags, quoted strings, heredoc bodies, and line-continuation
+// backslashes.
 //
 // Parsing is done via github.com/moby/buildkit/frontend/dockerfile/parser
 // so that line continuations, escape directives, parser directives, and
 // heredocs are handled the same way docker build itself handles them.
-func Dockerfile(w io.Writer, r io.Reader, styles *stripes.Styles) {
+func Render(w io.Writer, r io.Reader, styles *stripes.Styles) {
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return

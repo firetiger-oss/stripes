@@ -7,8 +7,8 @@ import (
 	"github.com/firetiger-oss/stripes"
 )
 
-// GoVendorModules renders a vendor/modules.txt file (the manifest
-// produced by `go mod vendor`) with ANSI styling.
+// RenderVendorModules writes a styled rendering of the vendor/modules.txt
+// file read from r to w (the manifest produced by `go mod vendor`).
 //
 // Line shapes:
 //   - `## <annotation>` — annotation lines like `## explicit` or
@@ -18,7 +18,7 @@ import (
 //     versions are numbers.
 //   - other non-blank lines — package import paths, styled as plain text.
 //   - blank lines — preserved verbatim.
-func GoVendorModules(w io.Writer, r io.Reader, styles *stripes.Styles) {
+func RenderVendorModules(w io.Writer, r io.Reader, styles *stripes.Styles) {
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return

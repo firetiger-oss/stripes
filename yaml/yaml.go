@@ -21,14 +21,14 @@ func init() {
 		Extensions:  []string{".yaml", ".yml"},
 		MagicBytes:  [][]byte{[]byte("---")},
 		Detect:      looksLikeYAML,
-		RendererFor: stripes.Simple(YAML),
+		RendererFor: stripes.Simple(Render),
 	})
 }
 
-// YAML renders a YAML document with ANSI styling. Comments, anchors,
-// aliases, flow- and block-styles, folded and literal scalars are all
-// preserved.
-func YAML(w io.Writer, r io.Reader, styles *stripes.Styles) {
+// Render writes a styled rendering of the YAML read from r to w.
+// Comments, anchors, aliases, flow- and block-styles, folded and
+// literal scalars are all preserved.
+func Render(w io.Writer, r io.Reader, styles *stripes.Styles) {
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return

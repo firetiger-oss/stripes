@@ -8,7 +8,7 @@ import (
 	"github.com/firetiger-oss/stripes"
 )
 
-func TestRenderHTML(t *testing.T) {
+func TestRenderRender(t *testing.T) {
 	tests := []struct {
 		name   string
 		input  string
@@ -124,32 +124,32 @@ func TestRenderHTML(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var output strings.Builder
 			reader := strings.NewReader(tt.input)
-			HTML(&output, reader, stripes.DefaultStyles)
+			Render(&output, reader, stripes.DefaultStyles)
 			result := output.String()
 
 			// Strip ANSI codes for byte-for-byte comparison
 			stripped := ansi.Strip(result)
 			if stripped != tt.output {
-				t.Errorf("HTML() output mismatch\nInput: %s\nExpected:\n%s\nGot:\n%s\nActual (with ANSI):\n%s",
+				t.Errorf("Render() output mismatch\nInput: %s\nExpected:\n%s\nGot:\n%s\nActual (with ANSI):\n%s",
 					tt.input, tt.output, stripped, result)
 			}
 		})
 	}
 }
 
-func TestRenderHTMLWithInvalidHTML(t *testing.T) {
+func TestRenderHTMLWithInvalidRender(t *testing.T) {
 	// Test that invalid HTML doesn't crash the function
 	var output strings.Builder
 
 	// Should not panic
 	defer func() {
 		if r := recover(); r != nil {
-			t.Errorf("HTML() panicked with invalid HTML: %v", r)
+			t.Errorf("Render() panicked with invalid HTML: %v", r)
 		}
 	}()
 
 	reader := strings.NewReader("<div><unclosed><p>test</div>")
-	HTML(&output, reader, stripes.DefaultStyles)
+	Render(&output, reader, stripes.DefaultStyles)
 	// Invalid HTML should produce some output or handle gracefully
 }
 
@@ -160,12 +160,12 @@ func TestRenderHTMLWithEmptyInput(t *testing.T) {
 	// Should not panic
 	defer func() {
 		if r := recover(); r != nil {
-			t.Errorf("HTML() panicked with empty input: %v", r)
+			t.Errorf("Render() panicked with empty input: %v", r)
 		}
 	}()
 
 	reader := strings.NewReader("")
-	HTML(&output, reader, stripes.DefaultStyles)
+	Render(&output, reader, stripes.DefaultStyles)
 	// Empty input should produce some minimal HTML structure
 	result := output.String()
 	if result == "" {
@@ -178,7 +178,7 @@ func TestRenderHTMLStyling(t *testing.T) {
 	input := `<div id="test"><p>content</p></div>`
 	var output strings.Builder
 	reader := strings.NewReader(input)
-	HTML(&output, reader, stripes.DefaultStyles)
+	Render(&output, reader, stripes.DefaultStyles)
 	result := output.String()
 
 	// Should contain styled elements (ANSI codes may not appear in test environment due to lipgloss auto-detection)

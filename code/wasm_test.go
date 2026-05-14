@@ -31,7 +31,7 @@ func TestWasmRendererNoWABT(t *testing.T) {
 
 	plain := &stripes.Styles{Indent: "  "}
 	var buf bytes.Buffer
-	Wasm(&buf, bytes.NewReader(minimalWasm), plain)
+	RenderWasm(&buf, bytes.NewReader(minimalWasm), plain)
 
 	got := buf.String()
 	if !strings.Contains(got, "wasm2wat not found") {
@@ -46,7 +46,7 @@ func TestWasmRenderer(t *testing.T) {
 
 	plain := &stripes.Styles{Indent: "  "}
 	var buf bytes.Buffer
-	Wasm(&buf, bytes.NewReader(minimalWasm), plain)
+	RenderWasm(&buf, bytes.NewReader(minimalWasm), plain)
 
 	got := buf.String()
 	if !strings.Contains(got, "(module") {
@@ -67,7 +67,7 @@ func TestWasmRendererInvalidBinary(t *testing.T) {
 
 	plain := &stripes.Styles{Indent: "  "}
 	var buf bytes.Buffer
-	Wasm(&buf, bytes.NewReader([]byte("not a wasm binary")), plain)
+	RenderWasm(&buf, bytes.NewReader([]byte("not a wasm binary")), plain)
 
 	got := buf.String()
 	if !strings.HasPrefix(got, "ERROR: wasm2wat:") {

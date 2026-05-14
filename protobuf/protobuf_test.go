@@ -168,7 +168,7 @@ nanos: 500000000
 			var buf bytes.Buffer
 			reader := bytes.NewReader(data)
 
-			renderer := Protobuf(desc, protoregistry.GlobalTypes)
+			renderer := New(desc, protoregistry.GlobalTypes)
 			renderer(&buf, reader, stripes.DefaultStyles)
 
 			got := buf.String()
@@ -206,7 +206,7 @@ func TestProtobufWireFormat(t *testing.T) {
 			reader := bytes.NewReader(data)
 
 			// Use nil descriptor to force wire format
-			renderer := Protobuf(nil, nil)
+			renderer := New(nil, nil)
 			renderer(&buf, reader, stripes.DefaultStyles)
 
 			got := buf.String()
@@ -225,7 +225,7 @@ func TestProtobufErrorHandling(t *testing.T) {
 		var buf bytes.Buffer
 		reader := bytes.NewReader(invalidData)
 
-		renderer := Protobuf(desc, protoregistry.GlobalTypes)
+		renderer := New(desc, protoregistry.GlobalTypes)
 		renderer(&buf, reader, stripes.DefaultStyles)
 
 		got := buf.String()

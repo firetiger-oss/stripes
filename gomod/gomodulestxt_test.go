@@ -8,7 +8,7 @@ import (
 	"github.com/firetiger-oss/stripes"
 )
 
-func TestRenderGoVendorModules(t *testing.T) {
+func TestRenderRenderVendorModules(t *testing.T) {
 	tests := []struct {
 		name   string
 		input  string
@@ -77,10 +77,10 @@ example.com/b/sub`,
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var output strings.Builder
-			GoVendorModules(&output, strings.NewReader(tt.input), stripes.DefaultStyles)
+			RenderVendorModules(&output, strings.NewReader(tt.input), stripes.DefaultStyles)
 			stripped := ansi.Strip(output.String())
 			if stripped != tt.output {
-				t.Errorf("GoVendorModules() output mismatch\nInput:\n%s\nExpected:\n%q\nGot:\n%q",
+				t.Errorf("RenderVendorModules() output mismatch\nInput:\n%s\nExpected:\n%q\nGot:\n%q",
 					tt.input, tt.output, stripped)
 			}
 		})

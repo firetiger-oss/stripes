@@ -8,7 +8,7 @@ import (
 	"github.com/firetiger-oss/stripes"
 )
 
-func TestRenderYAML(t *testing.T) {
+func TestRenderRender(t *testing.T) {
 	tests := []struct {
 		name   string
 		input  string
@@ -189,13 +189,13 @@ service2: *default`,
 		t.Run(tt.name, func(t *testing.T) {
 			var output strings.Builder
 			reader := strings.NewReader(tt.input)
-			YAML(&output, reader, stripes.DefaultStyles)
+			Render(&output, reader, stripes.DefaultStyles)
 			result := output.String()
 
 			// Strip ANSI codes for byte-for-byte comparison
 			stripped := ansi.Strip(result)
 			if stripped != tt.output {
-				t.Errorf("YAML() output mismatch\nInput: %s\nExpected:\n%s\nGot:\n%s\nActual (with ANSI):\n%s",
+				t.Errorf("Render() output mismatch\nInput: %s\nExpected:\n%s\nGot:\n%s\nActual (with ANSI):\n%s",
 					tt.input, tt.output, stripped, result)
 			}
 		})

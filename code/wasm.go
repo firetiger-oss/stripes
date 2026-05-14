@@ -17,19 +17,19 @@ func init() {
 		ContentType: "application/wasm",
 		Extensions:  []string{".wasm"},
 		MagicBytes:  [][]byte{{0x00, 'a', 's', 'm'}},
-		RendererFor: stripes.Simple(Wasm),
+		RendererFor: stripes.Simple(RenderWasm),
 	})
 }
 
-// Wasm is a [stripes.Renderer] for binary WebAssembly modules
-// (application/wasm). It disassembles the input by invoking the
-// external wasm2wat tool from WABT, then highlights the resulting WAT
-// text with chroma's wat lexer.
+// RenderWasm writes a styled rendering of the binary WebAssembly module
+// (application/wasm) read from r to w. It disassembles the input by
+// invoking the external wasm2wat tool from WABT, then highlights the
+// resulting WAT text with chroma's wat lexer.
 //
-// wasm2wat must be on $PATH. When it is not, Wasm writes a single-line
-// diagnostic instead of failing silently. Install via "brew install
-// wabt" on macOS or "apt install wabt" on Debian-derived systems.
-func Wasm(w io.Writer, r io.Reader, styles *stripes.Styles) {
+// wasm2wat must be on $PATH. When it is not, RenderWasm writes a
+// single-line diagnostic instead of failing silently. Install via "brew
+// install wabt" on macOS or "apt install wabt" on Debian-derived systems.
+func RenderWasm(w io.Writer, r io.Reader, styles *stripes.Styles) {
 	bin, err := exec.LookPath("wasm2wat")
 	if err != nil {
 		fmt.Fprintln(w, "ERROR: wasm2wat not found in $PATH; install WABT to render binary .wasm files")

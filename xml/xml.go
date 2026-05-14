@@ -19,7 +19,7 @@ func init() {
 		ContentType: "application/xml",
 		Extensions:  []string{".xml"},
 		Detect:      detectXML,
-		RendererFor: stripes.Simple(XML),
+		RendererFor: stripes.Simple(Render),
 	})
 }
 
@@ -42,8 +42,8 @@ func detectXML(peek []byte) bool {
 	return true
 }
 
-// XML renders an XML document with ANSI styling.
-func XML(w io.Writer, r io.Reader, styles *stripes.Styles) {
+// Render writes a styled rendering of the XML read from r to w.
+func Render(w io.Writer, r io.Reader, styles *stripes.Styles) {
 	d := xml.NewDecoder(r)
 
 	for {

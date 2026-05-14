@@ -8,7 +8,7 @@ import (
 	"github.com/firetiger-oss/stripes"
 )
 
-func TestRenderCSV(t *testing.T) {
+func TestRenderRender(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -142,7 +142,7 @@ Credit,-2500.00,-200.00`,
 		t.Run(tt.name, func(t *testing.T) {
 			var output strings.Builder
 			reader := strings.NewReader(tt.input)
-			CSV(&output, reader, stripes.DefaultStyles)
+			Render(&output, reader, stripes.DefaultStyles)
 			result := output.String()
 
 			// Strip ANSI codes for content checking
@@ -151,13 +151,13 @@ Credit,-2500.00,-200.00`,
 			// Check that all expected content is present
 			for _, expected := range tt.contains {
 				if !strings.Contains(stripped, expected) {
-					t.Errorf("CSV() output missing expected content: %q\nInput: %s\nOutput: %s", expected, tt.input, stripped)
+					t.Errorf("Render() output missing expected content: %q\nInput: %s\nOutput: %s", expected, tt.input, stripped)
 				}
 			}
 
 			// Ensure we got some output
 			if len(result) == 0 {
-				t.Errorf("CSV() produced empty output for input: %s", tt.input)
+				t.Errorf("Render() produced empty output for input: %s", tt.input)
 			}
 		})
 	}
@@ -170,12 +170,12 @@ func TestRenderCSVWithEmptyInput(t *testing.T) {
 	// Should not panic
 	defer func() {
 		if r := recover(); r != nil {
-			t.Errorf("CSV() panicked with empty input: %v", r)
+			t.Errorf("Render() panicked with empty input: %v", r)
 		}
 	}()
 
 	reader := strings.NewReader("")
-	CSV(&output, reader, stripes.DefaultStyles)
+	Render(&output, reader, stripes.DefaultStyles)
 	result := output.String()
 
 	// Should contain "Empty CSV" message
@@ -184,14 +184,14 @@ func TestRenderCSVWithEmptyInput(t *testing.T) {
 	}
 }
 
-func TestRenderCSVWithInvalidCSV(t *testing.T) {
+func TestRenderCSVWithInvalidRender(t *testing.T) {
 	// Test that malformed CSV doesn't crash the function
 	var output strings.Builder
 
 	// Should not panic
 	defer func() {
 		if r := recover(); r != nil {
-			t.Errorf("CSV() panicked with invalid CSV: %v", r)
+			t.Errorf("Render() panicked with invalid CSV: %v", r)
 		}
 	}()
 
@@ -201,7 +201,7 @@ func TestRenderCSVWithInvalidCSV(t *testing.T) {
 Alice,Normal`
 
 	reader := strings.NewReader(invalidCSV)
-	CSV(&output, reader, stripes.DefaultStyles)
+	Render(&output, reader, stripes.DefaultStyles)
 	// Should produce some output or error message
 	result := output.String()
 	if len(result) == 0 {
@@ -217,7 +217,7 @@ Bob,87.2,false`
 
 	var output strings.Builder
 	reader := strings.NewReader(input)
-	CSV(&output, reader, stripes.DefaultStyles)
+	Render(&output, reader, stripes.DefaultStyles)
 	result := output.String()
 
 	// Should contain the text content
@@ -251,7 +251,7 @@ Gadget,Another item,19.99`
 	// Use a narrow width
 	narrowStyles := stripes.DefaultStyles.Clone()
 	narrowStyles.Width = 40
-	CSV(&output, reader, narrowStyles)
+	Render(&output, reader, narrowStyles)
 	result := output.String()
 
 	stripped := ansi.Strip(result)
@@ -281,7 +281,7 @@ func TestRenderCSVHeaderOnly(t *testing.T) {
 
 	var output strings.Builder
 	reader := strings.NewReader(input)
-	CSV(&output, reader, stripes.DefaultStyles)
+	Render(&output, reader, stripes.DefaultStyles)
 	result := output.String()
 
 	stripped := ansi.Strip(result)
@@ -295,7 +295,7 @@ func TestRenderCSVHeaderOnly(t *testing.T) {
 	}
 }
 
-func TestTitleStyleInCSV(t *testing.T) {
+func TestTitleStyleInRender(t *testing.T) {
 	// Simple test to verify CSV renders without errors and contains expected content
 	input := `Name,Age,City
 Alice,25,NYC
@@ -303,7 +303,7 @@ Bob,30,LA`
 
 	var output strings.Builder
 	reader := strings.NewReader(input)
-	CSV(&output, reader, stripes.DefaultStyles)
+	Render(&output, reader, stripes.DefaultStyles)
 	result := output.String()
 
 	if len(result) == 0 {
@@ -328,7 +328,7 @@ Charlie,35,Chicago`
 
 	var output strings.Builder
 	reader := strings.NewReader(input)
-	CSV(&output, reader, stripes.DefaultStyles)
+	Render(&output, reader, stripes.DefaultStyles)
 	result := output.String()
 
 	if len(result) == 0 {

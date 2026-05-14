@@ -25,17 +25,18 @@ func init() {
 		ContentType: "application/vnd.apache.parquet",
 		Extensions:  []string{".parquet"},
 		MagicBytes:  [][]byte{[]byte("PAR1")},
-		RendererFor: stripes.Simple(Parquet),
+		RendererFor: stripes.Simple(Render),
 	})
 }
 
-// Parquet renders a parquet file as a styled lipgloss table, mirroring
-// the look of CSV. Top-level schema fields become headers; each row is
-// flattened to strings. Numeric columns are right-aligned.
+// Render writes the parquet file read from r to w as a styled lipgloss
+// table, mirroring the look of the csv renderer. Top-level schema fields
+// become headers; each row is flattened to strings. Numeric columns are
+// right-aligned.
 //
 // Parquet requires random access, so the entire input is buffered into
 // memory before decoding.
-func Parquet(w io.Writer, r io.Reader, styles *stripes.Styles) {
+func Render(w io.Writer, r io.Reader, styles *stripes.Styles) {
 	buf, err := io.ReadAll(r)
 	if err != nil {
 		io.WriteString(w, "Error reading Parquet: "+err.Error())

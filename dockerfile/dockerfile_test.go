@@ -8,7 +8,7 @@ import (
 	"github.com/firetiger-oss/stripes"
 )
 
-func TestRenderDockerfile(t *testing.T) {
+func TestRenderRender(t *testing.T) {
 	tests := []struct {
 		name   string
 		input  string
@@ -109,12 +109,12 @@ EOF`,
 		t.Run(tt.name, func(t *testing.T) {
 			var output strings.Builder
 			reader := strings.NewReader(tt.input)
-			Dockerfile(&output, reader, stripes.DefaultStyles)
+			Render(&output, reader, stripes.DefaultStyles)
 			result := output.String()
 
 			stripped := ansi.Strip(result)
 			if stripped != tt.output {
-				t.Errorf("Dockerfile() output mismatch\nInput:\n%s\nExpected:\n%s\nGot:\n%s\nActual (with ANSI):\n%s",
+				t.Errorf("Render() output mismatch\nInput:\n%s\nExpected:\n%s\nGot:\n%s\nActual (with ANSI):\n%s",
 					tt.input, tt.output, stripped, result)
 			}
 		})

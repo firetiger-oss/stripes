@@ -26,7 +26,7 @@ func init() {
 		Name:        "code",
 		ContentType: "text/x-source-code",
 		RendererFor: func(params map[string]string, _ string) stripes.Renderer {
-			return Code(params["lang"])
+			return New(params["lang"])
 		},
 	})
 	// Plug chroma's filename-based language detection into stripes.Detect
@@ -47,11 +47,11 @@ func init() {
 	})
 }
 
-// Code returns a [stripes.Renderer] that highlights source code using
+// New returns a [stripes.Renderer] that highlights source code using
 // the chroma lexer named lang. When lang is empty the renderer falls
 // back to chroma's content-based language detection; if no lexer can be
 // resolved the input is written verbatim.
-func Code(lang string) stripes.Renderer {
+func New(lang string) stripes.Renderer {
 	return func(w io.Writer, r io.Reader, styles *stripes.Styles) {
 		src, err := io.ReadAll(r)
 		if err != nil {

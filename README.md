@@ -46,24 +46,26 @@ import _ "github.com/firetiger-oss/stripes/all"
 
 | Content type                     | Sub-package  | Renderer(s)                                  |
 |----------------------------------|--------------|----------------------------------------------|
-| `application/json`               | `stripes/json`       | `JSON`                               |
-| `application/yaml`               | `stripes/yaml`       | `YAML`                               |
-| `application/xml`                | `stripes/xml`        | `XML`                                |
-| `text/html`                      | `stripes/html`       | `HTML`                               |
-| `text/csv`                       | `stripes/csv`        | `CSV`                                |
-| `text/x-dockerfile`              | `stripes/dockerfile` | `Dockerfile`                         |
-| `text/x-go-mod` etc.             | `stripes/gomod`      | `GoMod`, `GoSum`, `GoWork`, `GoVendorModules` |
-| `text/markdown`                  | `stripes/markdown`   | `Markdown`                           |
-| `text/x-source-code`             | `stripes/code`       | `Code` (factory; pass chroma lexer name) |
-| `application/wasm`               | `stripes/code`       | `Wasm` (requires `wasm2wat` from WABT) |
-| `application/protobuf`           | `stripes/protobuf`   | `Protobuf`                           |
-| `application/vnd.apache.parquet` | `stripes/parquet`    | `Parquet`                            |
-| `text/x-txtar`                   | `stripes/txtar`      | `Txtar` (recursive per-file dispatch) |
+| `application/json`               | `stripes/json`       | `Render`                             |
+| `application/yaml`               | `stripes/yaml`       | `Render`                             |
+| `application/xml`                | `stripes/xml`        | `Render`                             |
+| `text/html`                      | `stripes/html`       | `Render`                             |
+| `text/csv`                       | `stripes/csv`        | `Render`                             |
+| `text/x-dockerfile`              | `stripes/dockerfile` | `Render`                             |
+| `text/x-go-mod` etc.             | `stripes/gomod`      | `RenderMod`, `RenderSum`, `RenderWork`, `RenderVendorModules` |
+| `text/markdown`                  | `stripes/markdown`   | `Render`                             |
+| `text/x-source-code`             | `stripes/code`       | `New` (factory; pass chroma lexer name) |
+| `application/wasm`               | `stripes/code`       | `RenderWasm` (requires `wasm2wat` from WABT) |
+| `application/protobuf`           | `stripes/protobuf`   | `New` (factory; pass message descriptor) |
+| `application/vnd.apache.parquet` | `stripes/parquet`    | `Render`                             |
+| `text/x-txtar`                   | `stripes/txtar`      | `Render` (recursive per-file dispatch) |
 | `text/plain`                     | `stripes` (root)     | `Text`, `Plain`                      |
 
-All renderers share the
+The plain renderers share the
 [`Renderer`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Renderer)
-signature: `func(io.Writer, io.Reader, *stripes.Styles)`.
+signature: `func(io.Writer, io.Reader, *stripes.Styles)`. The two `New`
+factories (`stripes/code`, `stripes/protobuf`) take format-specific
+parameters and return a `Renderer`.
 
 `.wat`/`.wast` text-format WebAssembly is detected automatically and
 routed through chroma's `wat` lexer. Binary `.wasm` rendering shells

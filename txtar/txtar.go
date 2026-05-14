@@ -3,7 +3,7 @@
 //
 //	import _ "github.com/firetiger-oss/stripes/txtar"
 //
-// Txtar renders nested archive files by recursively dispatching through
+// Render writes nested archive files by recursively dispatching through
 // [stripes.Func] and [stripes.Detect], so the formatters available for
 // embedded files depend on which other stripes/<format> packages have
 // been imported.
@@ -25,17 +25,18 @@ func init() {
 		Name:        "txtar",
 		ContentType: "text/x-txtar",
 		Extensions:  []string{".txtar"},
-		RendererFor: stripes.Simple(Txtar),
+		RendererFor: stripes.Simple(Render),
 	})
 }
 
-// Txtar renders a txtar archive: a free-text comment followed by one or
-// more files, each introduced by a "-- name --" line.
+// Render writes a styled rendering of a txtar archive: a free-text
+// comment followed by one or more files, each introduced by a
+// "-- name --" line.
 //
-// Each embedded file is dispatched through [Detect] + [Func] using its
-// archive name, so a ".json" file is JSON-pretty-printed, a ".go" file
-// is syntax-highlighted via chroma, and so on. Unknown formats fall back
-// to [Plain].
+// Each embedded file is dispatched through [stripes.Detect] +
+// [stripes.Func] using its archive name, so a ".json" file is
+// JSON-pretty-printed, a ".go" file is syntax-highlighted via chroma,
+// and so on. Unknown formats fall back to [stripes.Plain].
 //
 // The archive comment is rendered as plain prose by default. If it looks
 // like a [testscript] file — a leading non-comment, non-blank line whose
@@ -46,7 +47,7 @@ func init() {
 // without changing the renderer for prose-style archives.
 //
 // [testscript]: https://pkg.go.dev/github.com/rogpeppe/go-internal/testscript
-func Txtar(w io.Writer, r io.Reader, styles *stripes.Styles) {
+func Render(w io.Writer, r io.Reader, styles *stripes.Styles) {
 	src, err := io.ReadAll(r)
 	if err != nil {
 		fmt.Fprintf(w, "ERROR: %s\n", err)

@@ -19,7 +19,7 @@ func init() {
 		ContentType: "text/html",
 		Extensions:  []string{".html", ".htm"},
 		Detect:      detectHTML,
-		RendererFor: stripes.Simple(HTML),
+		RendererFor: stripes.Simple(Render),
 	})
 }
 
@@ -32,8 +32,8 @@ func detectHTML(peek []byte) bool {
 		bytes.HasPrefix(lower, []byte("<html"))
 }
 
-// HTML renders an HTML document with ANSI styling.
-func HTML(w io.Writer, r io.Reader, styles *stripes.Styles) {
+// Render writes a styled rendering of the HTML read from r to w.
+func Render(w io.Writer, r io.Reader, styles *stripes.Styles) {
 	doc, err := xhtml.Parse(r)
 	if err != nil {
 		// Fallback to copying if parsing fails

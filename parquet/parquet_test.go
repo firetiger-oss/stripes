@@ -22,7 +22,7 @@ type parquetTestRow struct {
 // sampleParquet returns a small parquet file in memory. The set covers
 // string, int64, float64, bool, and TIMESTAMP_MILLIS — enough to exercise
 // both renderers' type handling.
-func sampleParquet(tb testing.TB) []byte {
+func sampleRender(tb testing.TB) []byte {
 	tb.Helper()
 	rows := []parquetTestRow{
 		{"alice", 30, 91.5, true, time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)},
@@ -40,15 +40,15 @@ func sampleParquet(tb testing.TB) []byte {
 	return buf.Bytes()
 }
 
-func runParquet(t *testing.T, buf []byte) string {
+func runRender(t *testing.T, buf []byte) string {
 	t.Helper()
 	var out strings.Builder
-	Parquet(&out, bytes.NewReader(buf), stripes.DefaultStyles)
+	Render(&out, bytes.NewReader(buf), stripes.DefaultStyles)
 	return ansi.Strip(out.String())
 }
 
-func TestParquet(t *testing.T) {
-	out := runParquet(t, sampleParquet(t))
+func TestRender(t *testing.T) {
+	out := runRender(t, sampleRender(t))
 	for _, want := range []string{
 		"name", "age", "score", "active", "created_at",
 		"alice", "bob", "carol",
@@ -64,7 +64,7 @@ func TestParquet(t *testing.T) {
 
 func TestParquetEmpty(t *testing.T) {
 	var out strings.Builder
-	Parquet(&out, strings.NewReader(""), stripes.DefaultStyles)
+	Render(&out, strings.NewReader(""), stripes.DefaultStyles)
 	if !strings.Contains(out.String(), "Empty Parquet") {
 		t.Fatalf("expected Empty Parquet message, got: %q", out.String())
 	}
@@ -89,7 +89,7 @@ func TestParquetNestedJSON(t *testing.T) {
 	if err := w.Close(); err != nil {
 		t.Fatalf("close parquet writer: %v", err)
 	}
-	out := runParquet(t, buf.Bytes())
+	out := runRender(t, buf.Bytes())
 	for _, want := range []string{`[1,2,3]`, `["admin","ops"]`} {
 		if !strings.Contains(out, want) {
 			t.Errorf("Parquet output missing %q\nfull output:\n%s", want, out)
@@ -103,19 +103,19 @@ func TestParquetNestedJSON(t *testing.T) {
 
 func TestParquetInvalid(t *testing.T) {
 	var out strings.Builder
-	Parquet(&out, strings.NewReader("not a parquet file"), stripes.DefaultStyles)
+	Render(&out, strings.NewReader("not a parquet file"), stripes.DefaultStyles)
 	if !strings.Contains(out.String(), "Error reading Parquet") {
 		t.Fatalf("expected Error reading Parquet, got: %q", out.String())
 	}
 }
 
-func BenchmarkParquet(b *testing.B) {
-	buf := sampleParquet(b)
+func BenchmarkRender(b *testing.B) {
+	buf := sampleRender(b)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var sink discardWriter
-		Parquet(sink, bytes.NewReader(buf), stripes.DefaultStyles)
+		Render(sink, bytes.NewReader(buf), stripes.DefaultStyles)
 	}
 }
 

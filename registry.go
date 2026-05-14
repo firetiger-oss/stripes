@@ -59,7 +59,7 @@ type Format struct {
 // in the common case where a format's renderer ignores both MIME
 // parameters and the schema URL:
 //
-//	stripes.Format{..., RendererFor: stripes.Simple(JSON)}
+//	stripes.Format{..., RendererFor: stripes.Simple(Render)}
 func Simple(r Renderer) func(map[string]string, string) Renderer {
 	return func(_ map[string]string, _ string) Renderer { return r }
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/firetiger-oss/stripes"
 )
 
-func TestRenderGoSum(t *testing.T) {
+func TestRenderRenderSum(t *testing.T) {
 	tests := []struct {
 		name   string
 		input  string
@@ -59,10 +59,10 @@ example.com/b v2.0.0 h1:bbb=`,
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var output strings.Builder
-			GoSum(&output, strings.NewReader(tt.input), stripes.DefaultStyles)
+			RenderSum(&output, strings.NewReader(tt.input), stripes.DefaultStyles)
 			stripped := ansi.Strip(output.String())
 			if stripped != tt.output {
-				t.Errorf("GoSum() output mismatch\nInput:\n%s\nExpected:\n%q\nGot:\n%q",
+				t.Errorf("RenderSum() output mismatch\nInput:\n%s\nExpected:\n%q\nGot:\n%q",
 					tt.input, tt.output, stripped)
 			}
 		})

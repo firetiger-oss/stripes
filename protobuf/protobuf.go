@@ -42,23 +42,23 @@ func init() {
 func rendererFor(_ map[string]string, schemaURL string) stripes.Renderer {
 	types := protoregistry.GlobalTypes
 	if schemaURL == "" {
-		return Protobuf(nil, types)
+		return New(nil, types)
 	}
 	fullName := protoreflect.FullName(path.Base(schemaURL))
 
 	messageType, err := types.FindMessageByName(fullName)
 	if err == nil {
-		return Protobuf(messageType.New().Descriptor(), types)
+		return New(messageType.New().Descriptor(), types)
 	}
 
 	desc, err := protoregistry.GlobalFiles.FindDescriptorByName(fullName)
 	if err != nil {
-		return Protobuf(nil, types)
+		return New(nil, types)
 	}
 	if msgDesc, ok := desc.(protoreflect.MessageDescriptor); ok {
-		return Protobuf(msgDesc, types)
+		return New(msgDesc, types)
 	}
-	return Protobuf(nil, types)
+	return New(nil, types)
 }
 
 var (
@@ -68,10 +68,10 @@ var (
 	protoWireStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))             // Grey for wire format
 )
 
-// Protobuf returns a [stripes.Renderer] for protobuf messages. When d is
+// New returns a [stripes.Renderer] for protobuf messages. When d is
 // nil the renderer displays the raw wire format; otherwise it decodes
 // against the descriptor d, resolving nested message types through t.
-func Protobuf(d protoreflect.MessageDescriptor, t protoregistry.MessageTypeResolver) stripes.Renderer {
+func New(d protoreflect.MessageDescriptor, t protoregistry.MessageTypeResolver) stripes.Renderer {
 	if d == nil {
 		return func(w io.Writer, r io.Reader, styles *stripes.Styles) {
 			printProtobufWire(w, r, styles)
