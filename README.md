@@ -247,7 +247,7 @@ Flags:
                               Use --paging=never to bypass paging.
   -n, --line-numbers          Show line numbers in a left-aligned gutter.
 
-Pager resolution: -p flag > $STRIPES_PAGER > $PAGER > "less -R"
+Pager resolution: -p flag > $PAGER > "less -R"
 Profile resolution: --profile flag > $STRIPES_PROFILE > built-in default
 Color is auto-disabled when NO_COLOR is set or stdout is not a terminal.
 ```
