@@ -28,8 +28,8 @@ go 1.22`,
 go 1.22`,
 		},
 		{
-			name:  "single require",
-			input: `require example.com/bar v1.2.3`,
+			name:   "single require",
+			input:  `require example.com/bar v1.2.3`,
 			output: `require example.com/bar v1.2.3`,
 		},
 		{
