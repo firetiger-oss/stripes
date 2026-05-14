@@ -2,6 +2,7 @@ package stripes
 
 import (
 	"io"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -9,6 +10,17 @@ import (
 // Renderer writes styled output for a single input format. All format
 // functions in this package (JSON, YAML, XML, ...) match this signature.
 type Renderer func(io.Writer, io.Reader, *Styles)
+
+// IsANSIEnabled reports whether styles emit ANSI escape codes. It samples
+// a few styles that all renderers exercise; if any of them produces an
+// escape byte, color output is considered enabled. Used by renderers that
+// switch between styled and plain output paths (notably markdown's
+// fenced-code blocks and source-code highlighting).
+func IsANSIEnabled(s *Styles) bool {
+	return strings.ContainsRune(s.Title.Render("x"), 0x1b) ||
+		strings.ContainsRune(s.Syntax.Render("x"), 0x1b) ||
+		strings.ContainsRune(s.Anchor.Render("x"), 0x1b)
+}
 
 // Styles defines the styling configuration for rendering various data types
 type Styles struct {

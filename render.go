@@ -1,24 +1,8 @@
 package stripes
 
 import (
-	"strconv"
 	"strings"
 )
-
-// isNumber checks if a string represents a numeric value
-// It tries to parse with strconv.ParseInt, then strconv.ParseUint, then strconv.ParseFloat as fallback
-func isNumber(s string) bool {
-	if _, err := strconv.ParseInt(s, 10, 64); err == nil {
-		return true
-	}
-	if _, err := strconv.ParseUint(s, 10, 64); err == nil {
-		return true
-	}
-	if _, err := strconv.ParseFloat(s, 64); err == nil {
-		return true
-	}
-	return false
-}
 
 // IsNumeric reports whether s looks like a number — optionally signed,
 // with `.` or `,` as decimals, scientific notation, and a recognised unit

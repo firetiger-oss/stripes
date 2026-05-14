@@ -27,6 +27,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/firetiger-oss/stripes"
+	_ "github.com/firetiger-oss/stripes/all"
 	"github.com/muesli/termenv"
 	"golang.org/x/term"
 )

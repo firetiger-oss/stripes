@@ -23,13 +23,64 @@ dumps, RPC responses).
 
 ## Library
 
+### Format sub-packages
+
+Each format lives in its own sub-package that registers itself with the
+root `stripes` package at init. Import the formats you need for their
+side effects — this keeps your dependency graph free of the parsers you
+don't use:
+
+```go
+import (
+    "github.com/firetiger-oss/stripes"
+    _ "github.com/firetiger-oss/stripes/json"
+    _ "github.com/firetiger-oss/stripes/yaml"
+)
+```
+
+Or import everything with the umbrella package:
+
+```go
+import _ "github.com/firetiger-oss/stripes/all"
+```
+
+| Content type                     | Sub-package  | Renderer(s)                                  |
+|----------------------------------|--------------|----------------------------------------------|
+| `application/json`               | `stripes/json`       | `JSON`                               |
+| `application/yaml`               | `stripes/yaml`       | `YAML`                               |
+| `application/xml`                | `stripes/xml`        | `XML`                                |
+| `text/html`                      | `stripes/html`       | `HTML`                               |
+| `text/csv`                       | `stripes/csv`        | `CSV`                                |
+| `text/x-dockerfile`              | `stripes/dockerfile` | `Dockerfile`                         |
+| `text/x-go-mod` etc.             | `stripes/gomod`      | `GoMod`, `GoSum`, `GoWork`, `GoVendorModules` |
+| `text/markdown`                  | `stripes/markdown`   | `Markdown`                           |
+| `text/x-source-code`             | `stripes/code`       | `Code` (factory; pass chroma lexer name) |
+| `application/wasm`               | `stripes/code`       | `Wasm` (requires `wasm2wat` from WABT) |
+| `application/protobuf`           | `stripes/protobuf`   | `Protobuf`                           |
+| `application/vnd.apache.parquet` | `stripes/parquet`    | `Parquet`                            |
+| `text/x-txtar`                   | `stripes/txtar`      | `Txtar` (recursive per-file dispatch) |
+| `text/plain`                     | `stripes` (root)     | `Text`, `Plain`                      |
+
+All renderers share the
+[`Renderer`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Renderer)
+signature: `func(io.Writer, io.Reader, *stripes.Styles)`.
+
+`.wat`/`.wast` text-format WebAssembly is detected automatically and
+routed through chroma's `wat` lexer. Binary `.wasm` rendering shells
+out to `wasm2wat` from [WABT](https://github.com/WebAssembly/wabt);
+install via `brew install wabt` or `apt install wabt`.
+
 ### [stripes.Func](https://pkg.go.dev/github.com/firetiger-oss/stripes#Func)
 
 Pick a [`Renderer`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Renderer)
-by MIME type. Returns `nil` if the content type is unsupported.
+by MIME type. Returns `nil` if no imported sub-package handles the
+content type.
 
 ```go
-import "github.com/firetiger-oss/stripes"
+import (
+    "github.com/firetiger-oss/stripes"
+    _ "github.com/firetiger-oss/stripes/json"
+)
 
 renderer := stripes.Func("application/json", "")
 renderer(os.Stdout, body, stripes.DefaultStyles)
@@ -40,7 +91,9 @@ argument so the dynamic descriptor lookup can resolve fields.
 
 ### [stripes.Detect](https://pkg.go.dev/github.com/firetiger-oss/stripes#Detect)
 
-Resolve a content type from a filename and/or the leading bytes of a stream.
+Resolve a content type from a filename and/or the leading bytes of a
+stream, using the filenames, extensions, magic bytes, and heuristics
+registered by the imported sub-packages.
 
 ```go
 buf, _ := bufio.NewReader(input).Peek(512)
@@ -48,32 +101,12 @@ ct := stripes.Detect("payload.yaml", buf)
 renderer := stripes.Func(ct, "")
 ```
 
-### Format functions
+### [stripes.Register](https://pkg.go.dev/github.com/firetiger-oss/stripes#Register)
 
-| Content type             | Function                                                                                                  |
-|--------------------------|-----------------------------------------------------------------------------------------------------------|
-| `application/json`       | [`JSON`](https://pkg.go.dev/github.com/firetiger-oss/stripes#JSON)                                        |
-| `application/yaml`       | [`YAML`](https://pkg.go.dev/github.com/firetiger-oss/stripes#YAML)                                        |
-| `application/xml`        | [`XML`](https://pkg.go.dev/github.com/firetiger-oss/stripes#XML)                                          |
-| `text/html`              | [`HTML`](https://pkg.go.dev/github.com/firetiger-oss/stripes#HTML)                                        |
-| `text/csv`               | [`CSV`](https://pkg.go.dev/github.com/firetiger-oss/stripes#CSV)                                          |
-| `text/x-dockerfile`      | [`Dockerfile`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Dockerfile)                            |
-| `text/markdown`          | [`Markdown`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Markdown)                                |
-| `text/x-source-code`     | [`Code`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Code) (factory; pass chroma lexer name)      |
-| `text/plain`             | [`Text`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Text)                                        |
-| `application/protobuf`   | [`Protobuf`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Protobuf)                                |
-| `application/vnd.apache.parquet` | [`Parquet`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Parquet)                          |
-| `application/wasm`       | [`Wasm`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Wasm) (requires `wasm2wat` from WABT)        |
-| `text/x-txtar`           | [`Txtar`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Txtar) (recursive per-file dispatch)        |
-| (passthrough)            | [`Plain`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Plain)                                      |
-
-All share the [`Renderer`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Renderer)
-signature: `func(io.Writer, io.Reader, *Styles)`.
-
-`.wat`/`.wast` text-format WebAssembly is detected automatically and
-routed through chroma's `wat` lexer. Binary `.wasm` rendering shells
-out to `wasm2wat` from [WABT](https://github.com/WebAssembly/wabt);
-install via `brew install wabt` or `apt install wabt`.
+Third-party code can register additional formats by calling
+`stripes.Register` with a [`Format`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Format)
+from an `init` function — the same mechanism the built-in sub-packages
+use.
 
 ### [stripes.Styles](https://pkg.go.dev/github.com/firetiger-oss/stripes#Styles)
 
