@@ -324,8 +324,20 @@ func renderParagraph(w io.Writer, n ast.Node, ctx *mdContext) {
 }
 
 func renderBlockquote(w io.Writer, n ast.Node, ctx *mdContext) {
+	const indentW = 2 // display width of "│ "
+
+	bodyCtx := ctx
+	if ctx.width > 0 {
+		cloned := *ctx
+		cloned.width = ctx.width - indentW
+		if cloned.width < 1 {
+			cloned.width = 1
+		}
+		bodyCtx = &cloned
+	}
+
 	var buf bytes.Buffer
-	renderMarkdownBlocks(&buf, n, ctx)
+	renderMarkdownBlocks(&buf, n, bodyCtx)
 	prefix := ctx.styles.Comment.Render("│ ")
 	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
 	for i, line := range lines {
