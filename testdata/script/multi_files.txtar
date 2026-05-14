@@ -8,11 +8,11 @@ cmp stdout expected.txt
 {"name":"bob"}
 -- expected.txt --
 ──────────────── a.json ────────────────
-{  
+{
   "name": "alice"
 }
 
 ──────────────── b.json ────────────────
-{  
+{
   "name": "bob"
 }

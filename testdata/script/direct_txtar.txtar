@@ -24,5 +24,8 @@ cmp stdout expected.txt
 >-- data.json --
 >{
 >  "a": 1,
->  "b": [2, 3]
+>  "b": [
+>    2,
+>    3
+>  ]
 >}

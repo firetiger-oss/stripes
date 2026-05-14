@@ -6,8 +6,11 @@ cmp stdout expected.txt
 -- input.json --
 {"name":"alice","age":30,"tags":["admin","ops"]}
 -- expected.txt --
-{  
+{
   "name": "alice",
   "age": 30,
-  "tags": ["admin", "ops"]
+  "tags": [
+    "admin",
+    "ops"
+  ]
 }
