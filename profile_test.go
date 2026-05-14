@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	chromastyles "github.com/alecthomas/chroma/v2/styles"
 	"charm.land/lipgloss/v2"
+	chromastyles "github.com/alecthomas/chroma/v2/styles"
 )
 
 // renderProbe renders a fixed token through a lipgloss.Style. Two styles
