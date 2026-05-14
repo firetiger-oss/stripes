@@ -6,6 +6,6 @@ cmp stdout expected.txt
 -- input.json --
 {"hello":"world"}
 -- expected.txt --
-{  
+{
   "hello": "world"
 }

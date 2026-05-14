@@ -6,6 +6,6 @@ cmp stdout expected.txt
 -- input.json --
 {"detected":true}
 -- expected.txt --
-{  
+{
   "detected": true
 }
