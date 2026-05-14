@@ -142,6 +142,11 @@ func TestRender(t *testing.T) {
 			input:  "- this is a long bullet point that should wrap nicely when narrow",
 			output: "• this is a long bullet point\n  that should wrap nicely when\n  narrow",
 		},
+		{
+			name:   "blockquote paragraph wraps within quote indent",
+			input:  "> aaaa bbbb cccc dddd eeee ffff gggg",
+			output: "│ aaaa bbbb cccc dddd eeee\n│ ffff gggg",
+		},
 	}
 
 	for _, tt := range tests {
@@ -151,7 +156,8 @@ func TestRender(t *testing.T) {
 			// Force a small width for list-wrap tests deterministically.
 			switch tt.name {
 			case "ordered list paragraph wraps with continuation indent",
-				"unordered list paragraph wraps within marker indent":
+				"unordered list paragraph wraps within marker indent",
+				"blockquote paragraph wraps within quote indent":
 				styles.Width = 30
 			default:
 				styles.Width = 80
