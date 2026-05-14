@@ -52,6 +52,16 @@ func detectByExtension(name string) string {
 	switch filepath.Base(name) {
 	case "Dockerfile", "Containerfile":
 		return "text/x-dockerfile"
+	case "go.mod":
+		return "text/x-go-mod"
+	case "go.sum", "go.work.sum":
+		return "text/x-go-sum"
+	case "go.work":
+		return "text/x-go-work"
+	case "modules.txt":
+		if filepath.Base(filepath.Dir(name)) == "vendor" {
+			return "text/x-go-vendor-modules"
+		}
 	}
 	switch strings.ToLower(filepath.Ext(name)) {
 	case ".json":

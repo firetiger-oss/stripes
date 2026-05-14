@@ -41,7 +41,7 @@ When multiple files are given, each is preceded by a centered rule
 --content-type, and --schema apply to all of them.
 
 Flags:
-  -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|text|code|protobuf|parquet|txtar|wasm|table|auto (default auto)
+  -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|gomod|gosum|gowork|modulestxt|text|code|protobuf|parquet|txtar|wasm|table|auto (default auto)
                               "table" routes CSV/TSV/JSONL/parquet through the
                               new typed-table renderer with width-fitting,
                               JSON-cell colorization, and (for parquet) schema-
@@ -140,7 +140,7 @@ func parseFlags(args []string) (*config, []string, error) {
 	}
 
 	switch cfg.format {
-	case "auto", "json", "yaml", "xml", "html", "csv", "dockerfile", "markdown", "text", "code", "protobuf", "wasm", "parquet", "txtar", "table":
+	case "auto", "json", "yaml", "xml", "html", "csv", "dockerfile", "markdown", "gomod", "gosum", "gowork", "modulestxt", "text", "code", "protobuf", "wasm", "parquet", "txtar", "table":
 	default:
 		return nil, nil, fmt.Errorf("invalid --format %q", cfg.format)
 	}
@@ -274,6 +274,14 @@ func formatToContentType(format string) string {
 		return "text/x-dockerfile"
 	case "markdown":
 		return "text/markdown"
+	case "gomod":
+		return "text/x-go-mod"
+	case "gosum":
+		return "text/x-go-sum"
+	case "gowork":
+		return "text/x-go-work"
+	case "modulestxt":
+		return "text/x-go-vendor-modules"
 	case "text":
 		return "text/plain"
 	case "code":

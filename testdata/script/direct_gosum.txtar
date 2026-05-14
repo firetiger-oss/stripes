@@ -1,0 +1,14 @@
+# go.sum pretty-printed via explicit --format flag.
+exec stripes --color=never -p cat --format=gosum input.txt
+cmp stdout expected.txt
+
+-- input.txt --
+example.com/a v1.0.0 h1:aaa=
+example.com/a v1.0.0/go.mod h1:bbb=
+example.com/b v2.3.4 h1:ccc=
+example.com/b v2.3.4/go.mod h1:ddd=
+-- expected.txt --
+example.com/a v1.0.0 h1:aaa=
+example.com/a v1.0.0/go.mod h1:bbb=
+example.com/b v2.3.4 h1:ccc=
+example.com/b v2.3.4/go.mod h1:ddd=

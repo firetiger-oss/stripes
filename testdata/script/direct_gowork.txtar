@@ -1,0 +1,22 @@
+# go.work pretty-printed via explicit --format flag.
+exec stripes --color=never -p cat --format=gowork input.txt
+cmp stdout expected.txt
+
+-- input.txt --
+go 1.22
+
+use (
+	./foo
+	./bar
+)
+
+replace example.com/foo => ../foo
+-- expected.txt --
+go 1.22
+
+use (
+	./foo
+	./bar
+)
+
+replace example.com/foo => ../foo

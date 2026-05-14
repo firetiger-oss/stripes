@@ -57,6 +57,14 @@ func Func(contentType, schemaURL string) Renderer {
 		return CSV
 	case "text/x-dockerfile":
 		return Dockerfile
+	case "text/x-go-mod":
+		return GoMod
+	case "text/x-go-sum":
+		return GoSum
+	case "text/x-go-work":
+		return GoWork
+	case "text/x-go-vendor-modules":
+		return GoVendorModules
 	case "text/markdown":
 		return Markdown
 	case "text/x-source-code":
