@@ -1,39 +1,10 @@
 package stripes
 
 import (
-	"bytes"
-	"strings"
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/ansi"
 )
-
-func TestTitleStyleInCSV(t *testing.T) {
-	// Simple test to verify CSV renders without errors and contains expected content
-	input := `Name,Age,City
-Alice,25,NYC
-Bob,30,LA`
-
-	var output bytes.Buffer
-	reader := strings.NewReader(input)
-	CSV(&output, reader, DefaultStyles)
-	result := output.String()
-
-	if len(result) == 0 {
-		t.Error("Expected CSV output to contain styled content")
-	}
-
-	// Verify that all expected content is present
-	stripped := ansi.Strip(result)
-	expectedContent := []string{"Name", "Age", "City", "Alice", "25", "NYC", "Bob", "30", "LA"}
-
-	for _, expected := range expectedContent {
-		if !strings.Contains(stripped, expected) {
-			t.Errorf("Expected CSV output to contain %q", expected)
-		}
-	}
-}
 
 func TestStylesCloneIncludesAllFields(t *testing.T) {
 	// Test that the Clone method properly copies all fields including Title, Columns, and Rows
@@ -73,32 +44,5 @@ func TestStylesCloneIncludesAllFields(t *testing.T) {
 	original.Width = 50
 	if cloned.Width != 100 {
 		t.Error("Cloned struct should be independent of original")
-	}
-}
-
-func TestCSVColumnsAndRowsStyling(t *testing.T) {
-	// Test that CSV uses Columns and Rows styling appropriately
-	input := `Name,Age,City
-Alice,25,NYC
-Bob,30,LA
-Charlie,35,Chicago`
-
-	var output bytes.Buffer
-	reader := strings.NewReader(input)
-	CSV(&output, reader, DefaultStyles)
-	result := output.String()
-
-	if len(result) == 0 {
-		t.Error("Expected CSV output to contain styled content")
-	}
-
-	// Verify that all expected content is present
-	stripped := ansi.Strip(result)
-	expectedContent := []string{"Name", "Age", "City", "Alice", "25", "NYC", "Bob", "30", "LA", "Charlie", "35", "Chicago"}
-
-	for _, expected := range expectedContent {
-		if !strings.Contains(stripped, expected) {
-			t.Errorf("Expected CSV output to contain %q", expected)
-		}
 	}
 }

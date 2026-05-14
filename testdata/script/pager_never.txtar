@@ -1,5 +1,5 @@
-# --paging=never writes directly to stdout, even when STRIPES_PAGER is set.
-env STRIPES_PAGER=stub-pager
+# --paging=never writes directly to stdout, even when PAGER is set.
+env PAGER=stub-pager
 env STUB_PAGER_LOG=$WORK/.pager.log
 
 exec stripes --color=never --paging=never input.json

@@ -1,6 +1,6 @@
 # --paging=auto with multiple input files forces the pager (rule 3),
 # even when stdout is not a TTY.
-env STRIPES_PAGER=stub-pager
+env PAGER=stub-pager
 env STUB_PAGER_LOG=$WORK/.pager.log
 
 exec stripes --color=never --paging=auto a.json b.json

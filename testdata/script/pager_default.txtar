@@ -1,6 +1,6 @@
 # --paging=always forces the pager even when stdout is not a TTY. With
-# STRIPES_PAGER=stub-pager, verify it was invoked and captured stdin bytes.
-env STRIPES_PAGER=stub-pager
+# PAGER=stub-pager, verify it was invoked and captured stdin bytes.
+env PAGER=stub-pager
 env STUB_PAGER_LOG=$WORK/.pager.log
 
 exec stripes --color=never --paging=always input.json

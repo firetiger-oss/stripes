@@ -16,6 +16,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"errors"
 	"flag"
 	"fmt"
@@ -27,6 +28,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/firetiger-oss/stripes"
+	_ "github.com/firetiger-oss/stripes/all"
 	"github.com/muesli/termenv"
 	"golang.org/x/term"
 )
@@ -65,7 +67,7 @@ Flags:
                               Use --paging=never to bypass paging.
   -n, --line-numbers          Show line numbers in a left-aligned gutter.
 
-Pager resolution: -p flag > $STRIPES_PAGER > $PAGER > "less -R"
+Pager resolution: -p flag > $PAGER > "less -R"
 Profile resolution: --profile flag > $STRIPES_PROFILE > built-in default
 Color is auto-disabled when NO_COLOR is set or stdout is not a terminal.
 `
@@ -541,14 +543,5 @@ func (s *autoPagerSink) finish() error {
 }
 
 func resolvePager(cfg *config) string {
-	if cfg.pager != "" {
-		return cfg.pager
-	}
-	if v := os.Getenv("STRIPES_PAGER"); v != "" {
-		return v
-	}
-	if v := os.Getenv("PAGER"); v != "" {
-		return v
-	}
-	return "less -R"
+	return cmp.Or(cfg.pager, os.Getenv("PAGER"), "less -R")
 }

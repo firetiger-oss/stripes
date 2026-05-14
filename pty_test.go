@@ -67,7 +67,7 @@ func runOnPTY(t *testing.T, cmd *exec.Cmd, rows, cols uint16) []byte {
 func stubPagerEnv(binDir, logPath string) []string {
 	return append(os.Environ(),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"STRIPES_PAGER=stub-pager",
+		"PAGER=stub-pager",
 		"STUB_PAGER_LOG="+logPath,
 	)
 }

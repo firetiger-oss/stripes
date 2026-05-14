@@ -1,8 +1,11 @@
-package stripes
+package stripes_test
 
 import (
 	"mime"
 	"testing"
+
+	"github.com/firetiger-oss/stripes"
+	_ "github.com/firetiger-oss/stripes/all"
 )
 
 func TestDetect(t *testing.T) {
@@ -105,9 +108,9 @@ func TestDetect(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name+"|"+tt.peek, func(t *testing.T) {
-			got := Detect(tt.name, []byte(tt.peek))
+			got := stripes.Detect(tt.name, []byte(tt.peek))
 			if got != tt.want {
-				t.Errorf("Detect(%q, %q) = %q, want %q", tt.name, tt.peek, got, tt.want)
+				t.Errorf("stripes.Detect(%q, %q) = %q, want %q", tt.name, tt.peek, got, tt.want)
 			}
 		})
 	}
@@ -129,7 +132,7 @@ func TestDetectMIMERoundTrip(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ct := Detect(tt.name, []byte("x"))
+			ct := stripes.Detect(tt.name, []byte("x"))
 			_, params, err := mime.ParseMediaType(ct)
 			if err != nil {
 				t.Fatalf("mime.ParseMediaType(%q) error: %v", ct, err)

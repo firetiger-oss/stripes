@@ -48,7 +48,6 @@ func TestCLI(t *testing.T) {
 			env.Setenv("PATH", binDir+string(os.PathListSeparator)+env.Getenv("PATH"))
 			env.Setenv("NO_COLOR", "")
 			env.Setenv("PAGER", "")
-			env.Setenv("STRIPES_PAGER", "")
 			return nil
 		},
 	})

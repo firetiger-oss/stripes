@@ -1,6 +1,5 @@
-# -p flag overrides STRIPES_PAGER and PAGER env vars.
-env STRIPES_PAGER=should-not-run
-env PAGER=should-not-run-either
+# -p flag overrides the PAGER env var.
+env PAGER=should-not-run
 env STUB_PAGER_LOG=$WORK/.pager.log
 
 exec stripes --color=never --paging=always -p stub-pager input.json
