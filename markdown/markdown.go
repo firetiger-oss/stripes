@@ -19,8 +19,8 @@ import (
 	chromalexers "github.com/alecthomas/chroma/v2/lexers"
 	chromastyles "github.com/alecthomas/chroma/v2/styles"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/clipperhouse/displaywidth"
 	"github.com/firetiger-oss/stripes"
-	"github.com/mattn/go-runewidth"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
@@ -378,7 +378,7 @@ func renderList(w io.Writer, list *ast.List, ctx *mdContext) {
 		if marker != "" {
 			styledMarker = ctx.styles.Syntax.Render(marker)
 		}
-		indentW := runewidth.StringWidth(marker)
+		indentW := displaywidth.String(marker)
 		if indentW == 0 {
 			indentW = 2
 		}
