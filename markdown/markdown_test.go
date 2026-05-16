@@ -444,10 +444,9 @@ func TestMarkdownLinkWrapAccountsForOSC8Width(t *testing.T) {
 // chunkReader feeds src to Read in fixed-size chunks, returning io.EOF on
 // the read that exhausts src. Used to simulate slow-arriving input.
 type chunkReader struct {
-	src   []byte
-	size  int
-	off   int
-	final bool
+	src  []byte
+	size int
+	off  int
 }
 
 func (c *chunkReader) Read(p []byte) (int, error) {
