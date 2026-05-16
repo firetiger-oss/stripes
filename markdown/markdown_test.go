@@ -1,8 +1,12 @@
 package markdown
 
 import (
+	"bytes"
+	"io"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/firetiger-oss/stripes"
@@ -435,4 +439,248 @@ func TestMarkdownLinkWrapAccountsForOSC8Width(t *testing.T) {
 	if got := ansi.Strip(buf.String()); got != want {
 		t.Errorf("wrap mismatch:\nwant: %q\n got: %q", want, got)
 	}
+}
+
+// chunkReader feeds src to Read in fixed-size chunks, returning io.EOF on
+// the read that exhausts src. Used to simulate slow-arriving input.
+type chunkReader struct {
+	src   []byte
+	size  int
+	off   int
+	final bool
+}
+
+func (c *chunkReader) Read(p []byte) (int, error) {
+	if c.off >= len(c.src) {
+		return 0, io.EOF
+	}
+	n := c.size
+	if n <= 0 || n > len(p) {
+		n = len(p)
+	}
+	if n > len(c.src)-c.off {
+		n = len(c.src) - c.off
+	}
+	copy(p, c.src[c.off:c.off+n])
+	c.off += n
+	return n, nil
+}
+
+func TestRenderStreamingMatchesBatch(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		width int
+	}{
+		{"empty", "", 80},
+		{"heading h1", "# Hello", 80},
+		{"heading + paragraph", "# Title\n\nFirst paragraph here.\n", 80},
+		{"mixed document", "# Title\n\nIntro **bold** here.\n\n## Sub\n\n- a\n- b\n\n```go\nx := 1\n```\n", 80},
+		{"nested list", "- outer\n  - inner1\n  - inner2\n- next", 80},
+		{"blockquote", "> quoted\n> line two\n\nafter", 80},
+		{"table", "| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n", 80},
+		{"thematic break between paragraphs", "First\n\n---\n\nSecond", 40},
+		{"frontmatter", "---\nname: foo\n---\n\n# Body\n\npara", 80},
+		{"unclosed frontmatter", "---\nsome: yaml\nno close\n\n# Heading\n", 80},
+		{"setext h1", "Title\n=====\n\nBody.", 80},
+		{"setext h2 hazard", "First paragraph.\n\nSome text\n---\n\nNext", 80},
+		{"code fence", "```go\nfmt.Println(\"hi\")\n```\n\nafter", 80},
+		{"narrow paragraph wrap", "this is a long paragraph that should wrap when the width is small enough", 20},
+		{"image", "![alt text](image.png)\n\nafter", 80},
+		{"task list", "- [x] done\n- [ ] todo\n\nafter", 80},
+		{"hard break", "line one  \nline two\n\nafter", 80},
+		{"trailing partial line", "# Heading", 80}, // no terminating newline
+	}
+
+	chunkSizes := []int{1, 2, 3, 7, 64, 4096}
+
+	for _, tc := range cases {
+		for _, sz := range chunkSizes {
+			name := tc.name + "/chunk=" + itoa(sz)
+			t.Run(name, func(t *testing.T) {
+				batchStyles := stripes.DefaultStyles.Clone()
+				batchStyles.Width = tc.width
+				streamStyles := stripes.DefaultStyles.Clone()
+				streamStyles.Width = tc.width
+
+				var batch strings.Builder
+				Render(&batch, strings.NewReader(tc.input), batchStyles)
+
+				var stream strings.Builder
+				Render(&stream, &chunkReader{src: []byte(tc.input), size: sz}, streamStyles)
+
+				if batch.String() != stream.String() {
+					t.Fatalf("streamed output differs from batch\nchunk size: %d\ninput: %q\nbatch:\n%s\n\nstream:\n%s",
+						sz, tc.input, batch.String(), stream.String())
+				}
+			})
+		}
+	}
+}
+
+// itoa is a tiny replacement for strconv.Itoa to avoid an import just for tests.
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var b [20]byte
+	pos := len(b)
+	neg := n < 0
+	if neg {
+		n = -n
+	}
+	for n > 0 {
+		pos--
+		b[pos] = byte('0' + n%10)
+		n /= 10
+	}
+	if neg {
+		pos--
+		b[pos] = '-'
+	}
+	return string(b[pos:])
+}
+
+// concurrentBuffer is a goroutine-safe bytes.Buffer for the io.Pipe-driven
+// liveness tests.
+type concurrentBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (c *concurrentBuffer) Write(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.buf.Write(p)
+}
+
+func (c *concurrentBuffer) String() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.buf.String()
+}
+
+// waitForContains polls buf for substring until found or the deadline
+// elapses; returns the final buffer contents and whether substring was seen.
+func waitForContains(buf *concurrentBuffer, substr string, deadline time.Duration) (string, bool) {
+	end := time.Now().Add(deadline)
+	for {
+		if got := buf.String(); strings.Contains(ansi.Strip(got), substr) {
+			return got, true
+		}
+		if time.Now().After(end) {
+			return buf.String(), false
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestRenderStreamingFastPathHeading(t *testing.T) {
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	var out concurrentBuffer
+	done := make(chan struct{})
+	go func() {
+		Render(&out, pr, stripes.DefaultStyles)
+		close(done)
+	}()
+
+	if _, err := pw.Write([]byte("# Title\n")); err != nil {
+		t.Fatalf("pipe write: %v", err)
+	}
+	// H1 renders the title in uppercase ("TITLE") followed by a rule line.
+	// The heading must appear before EOF — assert it shows up promptly.
+	if got, ok := waitForContains(&out, "TITLE", 2*time.Second); !ok {
+		t.Fatalf("expected H1 to render before EOF; got: %q", got)
+	}
+	pw.Close()
+	<-done
+}
+
+func TestRenderStreamingParagraphWaitsForSuccessor(t *testing.T) {
+	// A trailing paragraph must NOT render before either EOF or a successor
+	// block — otherwise a later `===` or `---` line would have it
+	// retroactively become a setext heading, which the stream cannot undo.
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	var out concurrentBuffer
+	done := make(chan struct{})
+	go func() {
+		Render(&out, pr, stripes.DefaultStyles)
+		close(done)
+	}()
+
+	if _, err := pw.Write([]byte("Just a paragraph.\n")); err != nil {
+		t.Fatalf("pipe write: %v", err)
+	}
+	// Give the renderer a window to (incorrectly) emit anything.
+	time.Sleep(50 * time.Millisecond)
+	if got := ansi.Strip(out.String()); got != "" {
+		t.Fatalf("trailing paragraph leaked before successor/EOF: %q", got)
+	}
+	pw.Close()
+	<-done
+	if got := ansi.Strip(out.String()); got != "Just a paragraph." {
+		t.Errorf("expected flushed paragraph; got: %q", got)
+	}
+}
+
+func TestRenderStreamingSetextHazardLateUnderline(t *testing.T) {
+	// "Some text" arrives first; later "---" arrives. The renderer must not
+	// have committed "Some text" as a paragraph — the final output is a
+	// setext H2, not paragraph + thematic break.
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	var out concurrentBuffer
+	done := make(chan struct{})
+	go func() {
+		Render(&out, pr, stripes.DefaultStyles)
+		close(done)
+	}()
+
+	if _, err := pw.Write([]byte("Some text\n")); err != nil {
+		t.Fatalf("pipe write: %v", err)
+	}
+	time.Sleep(20 * time.Millisecond)
+	if _, err := pw.Write([]byte("---\n")); err != nil {
+		t.Fatalf("pipe write: %v", err)
+	}
+	pw.Close()
+	<-done
+
+	// Setext H2 renders with the H2 underline pathway. Verify we did not
+	// produce a thematic-break rule (long row of ─) on its own line after
+	// "Some text" — i.e. the `---` was consumed by the setext heading, not
+	// turned into an HR.
+	stripped := ansi.Strip(out.String())
+	if !strings.Contains(stripped, "Some text") {
+		t.Fatalf("expected heading text in output, got: %q", stripped)
+	}
+	if strings.Contains(stripped, "\n"+strings.Repeat("─", 80)) {
+		t.Errorf("setext underline rendered as thematic break; output: %q", stripped)
+	}
+}
+
+func TestRenderStreamingThematicBreakFastPath(t *testing.T) {
+	// A thematic break following a blank line should fast-path even without
+	// a successor block: it cannot be reinterpreted by later input.
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	var out concurrentBuffer
+	done := make(chan struct{})
+	go func() {
+		styles := stripes.DefaultStyles.Clone()
+		styles.Width = 20
+		Render(&out, pr, styles)
+		close(done)
+	}()
+
+	if _, err := pw.Write([]byte("# Title\n\n---\n")); err != nil {
+		t.Fatalf("pipe write: %v", err)
+	}
+	if _, ok := waitForContains(&out, strings.Repeat("─", 20), 2*time.Second); !ok {
+		t.Fatalf("expected thematic break rule before EOF; got: %q", ansi.Strip(out.String()))
+	}
+	pw.Close()
+	<-done
 }
