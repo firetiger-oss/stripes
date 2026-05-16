@@ -25,6 +25,7 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	extast "github.com/yuin/goldmark/extension/ast"
+	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 )
 
@@ -37,40 +38,42 @@ func init() {
 	})
 }
 
-// Render writes a styled rendering of the Markdown read from r to w.
+// Render writes a styled rendering of the Markdown read from r to w. The
+// renderer streams: top-level blocks are emitted to w as soon as the input
+// makes them safely final, so feeding a slow-arriving reader (HTTP body,
+// stdin from an LLM client, ...) produces output incrementally rather than
+// waiting for EOF. The accumulated buffer is re-parsed with goldmark on
+// each chunk, and a block is treated as final once it gains a successor
+// sibling, or — for ATX headings, setext headings, and thematic breaks —
+// once its source lines are terminated.
 func Render(w io.Writer, r io.Reader, styles *stripes.Styles) {
-	src, err := io.ReadAll(r)
-	if err != nil {
-		fmt.Fprintf(w, "ERROR: %s\n", err)
-		return
-	}
-	src = stripFrontmatter(src)
-	md := goldmark.New(goldmark.WithExtensions(extension.GFM))
-	root := md.Parser().Parse(text.NewReader(src))
-
-	ctx := &mdContext{src: src, styles: styles, width: styles.Width, color: stripes.IsANSIEnabled(styles)}
-	renderMarkdownBlocks(w, root, ctx)
+	sr := newStreamRenderer(w, styles)
+	sr.run(r)
 }
 
-// stripFrontmatter returns src with a leading YAML frontmatter block
-// (--- ... ---) removed, including any blank lines between the closing
-// fence and the next content. If no well-formed frontmatter is present,
-// src is returned unchanged.
-func stripFrontmatter(src []byte) []byte {
+// scanFrontmatter inspects buf for a leading YAML frontmatter block
+// (--- ... ---). It returns the offset where the markdown body starts (past
+// the closing fence and any blank lines after it) and done=true when the
+// answer is known. If buf starts with `---\n` but the closing fence hasn't
+// arrived yet, done=false and the caller should wait for more input. If
+// buf doesn't start with a frontmatter open, done=true and bodyOffset=0
+// (the whole buffer is body).
+func scanFrontmatter(buf []byte) (bodyOffset int, done bool) {
 	var skip int
 	switch {
-	case bytes.HasPrefix(src, []byte("---\n")):
+	case bytes.HasPrefix(buf, []byte("---\n")):
 		skip = 4
-	case bytes.HasPrefix(src, []byte("---\r\n")):
+	case bytes.HasPrefix(buf, []byte("---\r\n")):
 		skip = 5
 	default:
-		return src
+		return 0, true
 	}
-	rest := src[skip:]
+	rest := buf[skip:]
+	consumed := skip
 	for {
 		nl := bytes.IndexByte(rest, '\n')
 		if nl < 0 {
-			return src
+			return 0, false
 		}
 		line := rest[:nl]
 		if n := len(line); n > 0 && line[n-1] == '\r' {
@@ -78,21 +81,196 @@ func stripFrontmatter(src []byte) []byte {
 		}
 		if bytes.Equal(line, []byte("---")) {
 			after := rest[nl+1:]
+			afterStart := consumed + nl + 1
 			for len(after) > 0 {
 				if after[0] == '\n' {
 					after = after[1:]
+					afterStart++
 					continue
 				}
 				if len(after) >= 2 && after[0] == '\r' && after[1] == '\n' {
 					after = after[2:]
+					afterStart += 2
 					continue
 				}
 				break
 			}
-			return after
+			return afterStart, true
 		}
+		consumed += nl + 1
 		rest = rest[nl+1:]
 	}
+}
+
+// streamRenderer drives block-level streaming markdown rendering. It
+// accumulates the raw input in buf, re-parses the body region with the
+// cached goldmark parser on each newline-bearing chunk, and emits any
+// top-level blocks that have become stable since the last flush.
+type streamRenderer struct {
+	w      io.Writer
+	styles *stripes.Styles
+	width  int
+	color  bool
+	parser parser.Parser
+
+	buf             bytes.Buffer
+	frontmatterDone bool // true once we know whether/where frontmatter ends
+	bodyOffset      int  // byte index in buf where the body starts
+	emitted         int  // count of renderable top-level blocks already written
+}
+
+func newStreamRenderer(w io.Writer, styles *stripes.Styles) *streamRenderer {
+	md := goldmark.New(goldmark.WithExtensions(extension.GFM))
+	return &streamRenderer{
+		w:      w,
+		styles: styles,
+		width:  styles.Width,
+		color:  stripes.IsANSIEnabled(styles),
+		parser: md.Parser(),
+	}
+}
+
+func (s *streamRenderer) run(r io.Reader) {
+	var chunk [4096]byte
+	for {
+		n, err := r.Read(chunk[:])
+		if n > 0 {
+			s.buf.Write(chunk[:n])
+			// Re-parse only when a newline arrived: completed blocks always
+			// end on a line boundary, so a chunk without a newline can't
+			// produce new stable output.
+			if bytes.IndexByte(chunk[:n], '\n') >= 0 {
+				s.tryEmit(false)
+			}
+		}
+		if err != nil {
+			if err != io.EOF {
+				fmt.Fprintf(s.w, "ERROR: %s\n", err)
+				return
+			}
+			break
+		}
+	}
+	s.tryEmit(true)
+}
+
+func (s *streamRenderer) tryEmit(final bool) {
+	if !s.frontmatterDone {
+		off, done := scanFrontmatter(s.buf.Bytes())
+		if !done {
+			if !final {
+				return
+			}
+			// EOF with an unclosed frontmatter open: pass through unchanged,
+			// matching the non-streaming behavior exercised by
+			// TestMarkdownLeavesUnclosedFrontmatterAlone.
+			off = 0
+		}
+		s.frontmatterDone = true
+		s.bodyOffset = off
+	}
+	src := s.buf.Bytes()[s.bodyOffset:]
+	if len(src) == 0 {
+		return
+	}
+
+	root := s.parser.Parse(text.NewReader(src))
+	children := renderableChildren(root)
+
+	stable := len(children) - 1
+	if final {
+		stable = len(children)
+	} else if stable >= 0 && isFastPathable(children[stable], src) {
+		stable++
+	}
+	if stable < s.emitted {
+		stable = s.emitted
+	}
+
+	if stable <= s.emitted {
+		return
+	}
+
+	ctx := &mdContext{src: src, styles: s.styles, width: s.width, color: s.color}
+	for i := s.emitted; i < stable; i++ {
+		if i > 0 {
+			io.WriteString(s.w, "\n\n")
+		}
+		renderMarkdownBlock(s.w, children[i], ctx)
+	}
+	s.emitted = stable
+}
+
+// renderableChildren returns the top-level children of root that
+// renderMarkdownBlocks would render, in document order. Mirrors the
+// isRenderableBlock filter in renderMarkdownBlocks.
+func renderableChildren(root ast.Node) []ast.Node {
+	var out []ast.Node
+	for n := root.FirstChild(); n != nil; n = n.NextSibling() {
+		if !isRenderableBlock(n) {
+			continue
+		}
+		out = append(out, n)
+	}
+	return out
+}
+
+// isFastPathable reports whether the trailing block n can be emitted now
+// (rather than waiting for a successor sibling) because its source can no
+// longer be reinterpreted by later input. Restricted to block types that
+// are committed to their parse on a single completed line: ATX headings
+// (lines starting with `#`), setext headings (text line followed by a
+// `===` or `---` underline line that has its own newline), and thematic
+// breaks. Paragraphs in particular are never fast-pathed — a trailing
+// paragraph followed by `===` or `---` becomes a setext heading.
+func isFastPathable(n ast.Node, src []byte) bool {
+	switch v := n.(type) {
+	case *ast.ThematicBreak:
+		_ = v
+		return true
+	case *ast.Heading:
+		return headingComplete(v, src)
+	}
+	return false
+}
+
+// headingComplete reports whether h's source line(s) end with a newline in
+// src — required before fast-pathing, so a partial trailing line ("# Tit"
+// before the rest arrives) is never emitted prematurely.
+func headingComplete(h *ast.Heading, src []byte) bool {
+	lines := h.Lines()
+	if lines.Len() == 0 {
+		return false
+	}
+	first := lines.At(0)
+	lineStart := first.Start
+	for lineStart > 0 && src[lineStart-1] != '\n' {
+		lineStart--
+	}
+	p := lineStart
+	for p < len(src) && (src[p] == ' ' || src[p] == '\t') {
+		p++
+	}
+	isATX := p < len(src) && src[p] == '#'
+
+	last := lines.At(lines.Len() - 1)
+	p = last.Stop
+	for p < len(src) && src[p] != '\n' {
+		p++
+	}
+	if p >= len(src) {
+		return false
+	}
+	if isATX {
+		return true
+	}
+	// Setext: skip past the text-line newline, then require the underline
+	// line to be terminated by another newline.
+	p++
+	for p < len(src) && src[p] != '\n' {
+		p++
+	}
+	return p < len(src)
 }
 
 type mdContext struct {
