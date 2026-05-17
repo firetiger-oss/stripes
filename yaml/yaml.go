@@ -144,11 +144,14 @@ func printYAMLNode(w io.Writer, node *yaml.Node, depth, inlinePrefix int, styles
 		value := node.Value
 		var styledValue string
 
-		// Determine the appropriate style based on the value type
+		// Determine the appropriate style based on the value type.
+		// Booleans match the YAML 1.1 keyword set (true/false plus
+		// yes/no/on/off in any case) since real-world configs still use
+		// those even when parsed under YAML 1.2.
 		switch {
 		case value == "null" || value == "~" || value == "":
 			styledValue = styles.Null.Render(value)
-		case value == "true" || value == "false":
+		case isBoolKeyword(value):
 			styledValue = styles.Boolean.Render(value)
 		case isNumber(value):
 			styledValue = styles.Number.Render(value)
@@ -178,12 +181,10 @@ func printYAMLNode(w io.Writer, node *yaml.Node, depth, inlinePrefix int, styles
 				}
 				styledValue = result.String()
 			default:
-				var style lipgloss.Style
-				if node.Style == yaml.DoubleQuotedStyle || node.Style == yaml.SingleQuotedStyle {
-					style = styles.String
-				} else {
-					style = styles.Text
-				}
+				// All non-special string scalars (plain and quoted alike)
+				// render with the String style — they are strings in YAML
+				// regardless of how the author chose to quote them.
+				style := styles.String
 				indentW := displaywidth.String(indentStr(styles))
 				inlineWidth := depth*indentW + inlinePrefix + displaywidth.String(value)
 				if styles.Width > 0 && inlineWidth > styles.Width {
@@ -236,6 +237,19 @@ func printYAMLNode(w io.Writer, node *yaml.Node, depth, inlinePrefix int, styles
 		io.WriteString(w, "\n")
 		io.WriteString(w, styles.Comment.Render(comment))
 	}
+}
+
+// isBoolKeyword reports whether s is one of YAML 1.1's boolean
+// keywords (true/false, yes/no, on/off) in any letter case. yaml.v3
+// parses under 1.2 — where only true/false are booleans — but real
+// config files still use the 1.1 keywords, and rendering them with the
+// Boolean style helps the reader spot toggles at a glance.
+func isBoolKeyword(s string) bool {
+	switch strings.ToLower(s) {
+	case "true", "false", "yes", "no", "on", "off":
+		return true
+	}
+	return false
 }
 
 // indentStr returns styles.Indent, defaulting to two spaces. The yaml

@@ -287,6 +287,53 @@ func TestRenderFoldsLongSequenceItem(t *testing.T) {
 	}
 }
 
+func TestRenderBooleanKeywords(t *testing.T) {
+	// All YAML 1.1 boolean keywords (any case) render with the Boolean
+	// style so toggles stand out from surrounding string scalars.
+	cases := []string{
+		"true", "false", "yes", "no", "on", "off",
+		"True", "False", "Yes", "No", "On", "Off",
+		"TRUE", "FALSE", "YES", "NO", "ON", "OFF",
+	}
+	for _, v := range cases {
+		t.Run(v, func(t *testing.T) {
+			var buf strings.Builder
+			Render(&buf, strings.NewReader("flag: "+v), stripes.DefaultStyles)
+			wantStyled := stripes.DefaultStyles.Boolean.Render(v)
+			if !strings.Contains(buf.String(), wantStyled) {
+				t.Errorf("expected Boolean-styled %q in output\nwant: %q\ngot:  %q",
+					v, wantStyled, buf.String())
+			}
+		})
+	}
+}
+
+func TestRenderNonBooleanLookalikesUnaffected(t *testing.T) {
+	// Words that resemble booleans but aren't exact matches stay strings.
+	for _, v := range []string{"truely", "noop", "yesterday", "onward"} {
+		t.Run(v, func(t *testing.T) {
+			var buf strings.Builder
+			Render(&buf, strings.NewReader("name: "+v), stripes.DefaultStyles)
+			wantStyled := stripes.DefaultStyles.String.Render(v)
+			if !strings.Contains(buf.String(), wantStyled) {
+				t.Errorf("expected String-styled %q, got: %q", v, buf.String())
+			}
+		})
+	}
+}
+
+func TestRenderPlainScalarUsesStringStyle(t *testing.T) {
+	// Plain (unquoted) strings render in the String style (green) so
+	// strings read as a single visual class regardless of quoting.
+	var buf strings.Builder
+	Render(&buf, strings.NewReader("name: rollout"), stripes.DefaultStyles)
+	wantStyled := stripes.DefaultStyles.String.Render("rollout")
+	if !strings.Contains(buf.String(), wantStyled) {
+		t.Errorf("plain scalar should use String style\nwant: %q\ngot:  %q",
+			wantStyled, buf.String())
+	}
+}
+
 func TestRenderFoldedRoundTrips(t *testing.T) {
 	// Safety guarantee: a long description wrapped with > folds back to
 	// the original string when re-parsed as YAML. This is what motivated
