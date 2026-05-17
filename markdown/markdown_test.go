@@ -195,21 +195,45 @@ func TestMarkdownEmptyDoesNotPanic(t *testing.T) {
 	}
 }
 
-func TestMarkdownStripsFrontmatter(t *testing.T) {
+func TestMarkdownRendersFrontmatter(t *testing.T) {
 	input := "---\nname: rollout\ndescription: \"SRE-grade change control\"\n---\n\n# Rollout\n\nUmbrella skill body."
 	var buf strings.Builder
 	Render(&buf, strings.NewReader(input), stripes.DefaultStyles)
 	got := ansi.Strip(buf.String())
-	for _, banned := range []string{"name:", "description:", "rollout\n", "SRE-grade"} {
-		if strings.Contains(got, banned) {
-			t.Errorf("frontmatter leaked into output: %q\nGot:\n%s", banned, got)
+	for _, want := range []string{"name:", "description:", "rollout", "SRE-grade change control"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("expected frontmatter to contain %q\nGot:\n%s", want, got)
 		}
 	}
-	if !strings.HasPrefix(got, "ROLLOUT\n") {
-		t.Errorf("expected output to start with rendered H1 heading, got:\n%s", got)
+	if !strings.HasPrefix(got, "---\n") {
+		t.Errorf("expected output to start with opening --- fence\nGot:\n%s", got)
+	}
+	if n := strings.Count(got, "---"); n != 2 {
+		t.Errorf("expected two --- fences, got %d\nGot:\n%s", n, got)
 	}
 	if !strings.Contains(got, "Umbrella skill body.") {
 		t.Errorf("body text missing\nGot:\n%s", got)
+	}
+	// Frontmatter must precede the body.
+	yamlIdx := strings.Index(got, "name:")
+	bodyIdx := strings.Index(got, "ROLLOUT")
+	if yamlIdx < 0 || bodyIdx < 0 || yamlIdx > bodyIdx {
+		t.Errorf("expected frontmatter before body heading\nGot:\n%s", got)
+	}
+}
+
+func TestMarkdownFrontmatterFencesDimmed(t *testing.T) {
+	// The --- fences must carry the Comment style (Foreground 8 + Faint).
+	input := "---\nname: foo\n---\n\nBody."
+	var buf strings.Builder
+	Render(&buf, strings.NewReader(input), stripes.DefaultStyles)
+	out := buf.String()
+	wantFence := stripes.DefaultStyles.Comment.Render("---")
+	if !strings.Contains(out, wantFence) {
+		t.Errorf("expected Comment-styled --- fence in output\nwant fence: %q\ngot:\n%q", wantFence, out)
+	}
+	if n := strings.Count(out, wantFence); n != 2 {
+		t.Errorf("expected exactly 2 dimmed --- fences, got %d", n)
 	}
 }
 
