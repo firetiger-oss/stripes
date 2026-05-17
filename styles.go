@@ -61,7 +61,7 @@ var DefaultStyles = &Styles{
 	Text:       lipgloss.NewStyle().Foreground(lipgloss.Color("7")),
 	String:     lipgloss.NewStyle().Foreground(lipgloss.Color("2")),
 	Number:     lipgloss.NewStyle().Foreground(lipgloss.Color("7")),
-	Boolean:    lipgloss.NewStyle().Foreground(lipgloss.Color("7")),
+	Boolean:    lipgloss.NewStyle().Foreground(lipgloss.Color("13")),
 	Null:       lipgloss.NewStyle().Foreground(lipgloss.Color("8")),
 	Syntax:     lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Bold(true),
 	Code:       lipgloss.NewStyle().Foreground(lipgloss.Color("183")),

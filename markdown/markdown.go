@@ -21,6 +21,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/clipperhouse/displaywidth"
 	"github.com/firetiger-oss/stripes"
+	"github.com/firetiger-oss/stripes/yaml"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
@@ -52,13 +53,17 @@ func Render(w io.Writer, r io.Reader, styles *stripes.Styles) {
 }
 
 // scanFrontmatter inspects buf for a leading YAML frontmatter block
-// (--- ... ---). It returns the offset where the markdown body starts (past
-// the closing fence and any blank lines after it) and done=true when the
-// answer is known. If buf starts with `---\n` but the closing fence hasn't
-// arrived yet, done=false and the caller should wait for more input. If
-// buf doesn't start with a frontmatter open, done=true and bodyOffset=0
-// (the whole buffer is body).
-func scanFrontmatter(buf []byte) (bodyOffset int, done bool) {
+// (--- ... ---). It returns:
+//   - yamlStart, yamlEnd: the byte range of the YAML content between the
+//     opening and closing fences (yamlStart == yamlEnd when there is no
+//     frontmatter or when the fences enclose an empty body).
+//   - bodyOffset: the offset where the markdown body starts (past the
+//     closing fence and any blank lines after it).
+//   - done=true when the answer is known. If buf starts with `---\n` but the
+//     closing fence hasn't arrived yet, done=false and the caller should
+//     wait for more input. If buf doesn't start with a frontmatter open,
+//     done=true and all offsets are 0 (the whole buffer is body).
+func scanFrontmatter(buf []byte) (yamlStart, yamlEnd, bodyOffset int, done bool) {
 	var skip int
 	switch {
 	case bytes.HasPrefix(buf, []byte("---\n")):
@@ -66,14 +71,14 @@ func scanFrontmatter(buf []byte) (bodyOffset int, done bool) {
 	case bytes.HasPrefix(buf, []byte("---\r\n")):
 		skip = 5
 	default:
-		return 0, true
+		return 0, 0, 0, true
 	}
 	rest := buf[skip:]
 	consumed := skip
 	for {
 		nl := bytes.IndexByte(rest, '\n')
 		if nl < 0 {
-			return 0, false
+			return 0, 0, 0, false
 		}
 		line := rest[:nl]
 		if n := len(line); n > 0 && line[n-1] == '\r' {
@@ -95,7 +100,7 @@ func scanFrontmatter(buf []byte) (bodyOffset int, done bool) {
 				}
 				break
 			}
-			return afterStart, true
+			return skip, consumed, afterStart, true
 		}
 		consumed += nl + 1
 		rest = rest[nl+1:]
@@ -113,10 +118,13 @@ type streamRenderer struct {
 	color  bool
 	parser parser.Parser
 
-	buf             bytes.Buffer
-	frontmatterDone bool // true once we know whether/where frontmatter ends
-	bodyOffset      int  // byte index in buf where the body starts
-	emitted         int  // count of renderable top-level blocks already written
+	buf                bytes.Buffer
+	frontmatterDone    bool // true once we know whether/where frontmatter ends
+	frontmatterEmitted bool // true once the rendered frontmatter has been written
+	yamlStart          int  // byte index in buf where the YAML content begins
+	yamlEnd            int  // byte index in buf where the YAML content ends (start of closing fence)
+	bodyOffset         int  // byte index in buf where the body starts
+	emitted            int  // count of renderable top-level blocks already written
 }
 
 func newStreamRenderer(w io.Writer, styles *stripes.Styles) *streamRenderer {
@@ -156,7 +164,7 @@ func (s *streamRenderer) run(r io.Reader) {
 
 func (s *streamRenderer) tryEmit(final bool) {
 	if !s.frontmatterDone {
-		off, done := scanFrontmatter(s.buf.Bytes())
+		yamlStart, yamlEnd, off, done := scanFrontmatter(s.buf.Bytes())
 		if !done {
 			if !final {
 				return
@@ -164,10 +172,16 @@ func (s *streamRenderer) tryEmit(final bool) {
 			// EOF with an unclosed frontmatter open: pass through unchanged,
 			// matching the non-streaming behavior exercised by
 			// TestMarkdownLeavesUnclosedFrontmatterAlone.
-			off = 0
+			yamlStart, yamlEnd, off = 0, 0, 0
 		}
 		s.frontmatterDone = true
+		s.yamlStart = yamlStart
+		s.yamlEnd = yamlEnd
 		s.bodyOffset = off
+	}
+	if !s.frontmatterEmitted && s.bodyOffset > 0 {
+		s.renderFrontmatter()
+		s.frontmatterEmitted = true
 	}
 	src := s.buf.Bytes()[s.bodyOffset:]
 	if len(src) == 0 {
@@ -193,12 +207,26 @@ func (s *streamRenderer) tryEmit(final bool) {
 
 	ctx := &mdContext{src: src, styles: s.styles, width: s.width, color: s.color}
 	for i := s.emitted; i < stable; i++ {
-		if i > 0 {
+		if i > 0 || s.frontmatterEmitted {
 			io.WriteString(s.w, "\n\n")
 		}
 		renderMarkdownBlock(s.w, children[i], ctx)
 	}
 	s.emitted = stable
+}
+
+// renderFrontmatter writes the YAML frontmatter block: the opening `---`
+// fence in dimmed Comment style, the YAML content rendered with the yaml
+// package's coloration, and the closing `---` fence. Called at most once
+// per stream, before the first body block.
+func (s *streamRenderer) renderFrontmatter() {
+	fence := s.styles.Comment.Render("---")
+	io.WriteString(s.w, fence)
+	io.WriteString(s.w, "\n")
+	yamlContent := s.buf.Bytes()[s.yamlStart:s.yamlEnd]
+	yaml.Render(s.w, bytes.NewReader(yamlContent), s.styles)
+	io.WriteString(s.w, "\n")
+	io.WriteString(s.w, fence)
 }
 
 // renderableChildren returns the top-level children of root that

@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/firetiger-oss/stripes"
+	goyaml "gopkg.in/yaml.v3"
 )
 
 func TestRenderRender(t *testing.T) {
@@ -199,5 +200,152 @@ service2: *default`,
 					tt.input, tt.output, stripped, result)
 			}
 		})
+	}
+}
+
+const longDescription = "Runs the built-in consistency checks (`iceberg analyze`) and optionally repairs (`--fix`) — what each check covers, what it cannot detect, and the safe order to run a check + fix. Use before/after a risky change, when diagnosing a broken table, or as a periodic audit."
+
+func renderYAML(t *testing.T, input string, width int) string {
+	t.Helper()
+	styles := stripes.DefaultStyles.Clone()
+	styles.Width = width
+	var buf strings.Builder
+	Render(&buf, strings.NewReader(input), styles)
+	return ansi.Strip(buf.String())
+}
+
+func TestRenderFoldsLongMappingValue(t *testing.T) {
+	input := "description: " + longDescription + "\n"
+	got := renderYAML(t, input, 60)
+
+	lines := strings.Split(got, "\n")
+	if lines[0] != "description: >" {
+		t.Fatalf("expected first line to be `description: >`, got %q\nFull output:\n%s", lines[0], got)
+	}
+	if len(lines) < 3 {
+		t.Fatalf("expected multiple continuation lines, got %d:\n%s", len(lines), got)
+	}
+	for i, line := range lines[1:] {
+		if line == "" {
+			continue
+		}
+		if !strings.HasPrefix(line, "  ") {
+			t.Errorf("continuation line %d not 2-space indented: %q", i+1, line)
+		}
+		if w := ansi.StringWidth(line); w > 60 {
+			t.Errorf("continuation line %d exceeds width 60 (got %d): %q", i+1, w, line)
+		}
+	}
+}
+
+func TestRenderShortValueNotFolded(t *testing.T) {
+	got := renderYAML(t, "name: rollout\n", 60)
+	if got != "name: rollout" {
+		t.Errorf("short value should render on one line\nwant: %q\ngot:  %q", "name: rollout", got)
+	}
+	if strings.Contains(got, ">") {
+		t.Errorf("short value should not gain a > fold marker: %q", got)
+	}
+}
+
+func TestRenderUnwrappedWhenWidthZero(t *testing.T) {
+	// Width=0 disables wrapping — the long value stays on one line.
+	got := renderYAML(t, "description: "+longDescription+"\n", 0)
+	if strings.Contains(got, "\n") {
+		t.Errorf("Width=0 must not wrap; got multi-line output:\n%s", got)
+	}
+	if strings.Contains(got, ">") {
+		t.Errorf("Width=0 must not emit > fold marker: %q", got)
+	}
+}
+
+func TestRenderFoldsLongSequenceItem(t *testing.T) {
+	input := "items:\n  - " + longDescription + "\n"
+	got := renderYAML(t, input, 60)
+
+	lines := strings.Split(got, "\n")
+	// First line is the map key.
+	if lines[0] != "items: " {
+		t.Fatalf("expected first line `items: `, got %q\nFull:\n%s", lines[0], got)
+	}
+	// Second line opens the sequence item with `- >`.
+	if lines[1] != "  - >" {
+		t.Fatalf("expected sequence-item fold marker `  - >`, got %q\nFull:\n%s", lines[1], got)
+	}
+	// Continuation lines align under the value at 4 spaces (2 for the
+	// nested PrefixWriter indent + 2 for the fold's own continuation).
+	for i, line := range lines[2:] {
+		if line == "" {
+			continue
+		}
+		if !strings.HasPrefix(line, "    ") {
+			t.Errorf("sequence continuation line %d not 4-space indented: %q", i+2, line)
+		}
+		if w := ansi.StringWidth(line); w > 60 {
+			t.Errorf("sequence continuation line %d exceeds width 60 (got %d): %q", i+2, w, line)
+		}
+	}
+}
+
+func TestRenderBooleanKeywords(t *testing.T) {
+	// All YAML 1.1 boolean keywords (any case) render with the Boolean
+	// style so toggles stand out from surrounding string scalars.
+	cases := []string{
+		"true", "false", "yes", "no", "on", "off",
+		"True", "False", "Yes", "No", "On", "Off",
+		"TRUE", "FALSE", "YES", "NO", "ON", "OFF",
+	}
+	for _, v := range cases {
+		t.Run(v, func(t *testing.T) {
+			var buf strings.Builder
+			Render(&buf, strings.NewReader("flag: "+v), stripes.DefaultStyles)
+			wantStyled := stripes.DefaultStyles.Boolean.Render(v)
+			if !strings.Contains(buf.String(), wantStyled) {
+				t.Errorf("expected Boolean-styled %q in output\nwant: %q\ngot:  %q",
+					v, wantStyled, buf.String())
+			}
+		})
+	}
+}
+
+func TestRenderNonBooleanLookalikesUnaffected(t *testing.T) {
+	// Words that resemble booleans but aren't exact matches stay strings.
+	for _, v := range []string{"truely", "noop", "yesterday", "onward"} {
+		t.Run(v, func(t *testing.T) {
+			var buf strings.Builder
+			Render(&buf, strings.NewReader("name: "+v), stripes.DefaultStyles)
+			wantStyled := stripes.DefaultStyles.String.Render(v)
+			if !strings.Contains(buf.String(), wantStyled) {
+				t.Errorf("expected String-styled %q, got: %q", v, buf.String())
+			}
+		})
+	}
+}
+
+func TestRenderPlainScalarUsesStringStyle(t *testing.T) {
+	// Plain (unquoted) strings render in the String style (green) so
+	// strings read as a single visual class regardless of quoting.
+	var buf strings.Builder
+	Render(&buf, strings.NewReader("name: rollout"), stripes.DefaultStyles)
+	wantStyled := stripes.DefaultStyles.String.Render("rollout")
+	if !strings.Contains(buf.String(), wantStyled) {
+		t.Errorf("plain scalar should use String style\nwant: %q\ngot:  %q",
+			wantStyled, buf.String())
+	}
+}
+
+func TestRenderFoldedRoundTrips(t *testing.T) {
+	// Safety guarantee: a long description wrapped with > folds back to
+	// the original string when re-parsed as YAML. This is what motivated
+	// choosing > over plain wrapping or |.
+	got := renderYAML(t, "description: "+longDescription+"\n", 60)
+	var round struct {
+		Description string `yaml:"description"`
+	}
+	if err := goyaml.Unmarshal([]byte(got), &round); err != nil {
+		t.Fatalf("rendered YAML failed to parse: %v\nOutput:\n%s", err, got)
+	}
+	if round.Description != longDescription {
+		t.Errorf("round-trip mismatch\nwant: %q\ngot:  %q", longDescription, round.Description)
 	}
 }

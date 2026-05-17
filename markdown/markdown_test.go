@@ -195,21 +195,74 @@ func TestMarkdownEmptyDoesNotPanic(t *testing.T) {
 	}
 }
 
-func TestMarkdownStripsFrontmatter(t *testing.T) {
+func TestMarkdownRendersFrontmatter(t *testing.T) {
 	input := "---\nname: rollout\ndescription: \"SRE-grade change control\"\n---\n\n# Rollout\n\nUmbrella skill body."
 	var buf strings.Builder
 	Render(&buf, strings.NewReader(input), stripes.DefaultStyles)
 	got := ansi.Strip(buf.String())
-	for _, banned := range []string{"name:", "description:", "rollout\n", "SRE-grade"} {
-		if strings.Contains(got, banned) {
-			t.Errorf("frontmatter leaked into output: %q\nGot:\n%s", banned, got)
+	for _, want := range []string{"name:", "description:", "rollout", "SRE-grade change control"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("expected frontmatter to contain %q\nGot:\n%s", want, got)
 		}
 	}
-	if !strings.HasPrefix(got, "ROLLOUT\n") {
-		t.Errorf("expected output to start with rendered H1 heading, got:\n%s", got)
+	if !strings.HasPrefix(got, "---\n") {
+		t.Errorf("expected output to start with opening --- fence\nGot:\n%s", got)
+	}
+	if n := strings.Count(got, "---"); n != 2 {
+		t.Errorf("expected two --- fences, got %d\nGot:\n%s", n, got)
 	}
 	if !strings.Contains(got, "Umbrella skill body.") {
 		t.Errorf("body text missing\nGot:\n%s", got)
+	}
+	// Frontmatter must precede the body.
+	yamlIdx := strings.Index(got, "name:")
+	bodyIdx := strings.Index(got, "ROLLOUT")
+	if yamlIdx < 0 || bodyIdx < 0 || yamlIdx > bodyIdx {
+		t.Errorf("expected frontmatter before body heading\nGot:\n%s", got)
+	}
+}
+
+func TestMarkdownFrontmatterWrapsLongDescription(t *testing.T) {
+	// Modeled on a real skill manifest with a multi-sentence description
+	// that overruns 80 columns on a single line. The yaml renderer
+	// should auto-fold it with > so each row fits the configured Width.
+	longDesc := "Runs the built-in consistency checks (`iceberg analyze`) and optionally repairs (`--fix`) — what each check covers, what it cannot detect, and the safe order to run a check + fix. Use before/after a risky change, when diagnosing a broken table, or as a periodic audit."
+	input := "---\nname: analyzing-iceberg-table-health\ndescription: " + longDesc + "\n---\n\n# Body\n"
+	styles := stripes.DefaultStyles.Clone()
+	styles.Width = 80
+	var buf strings.Builder
+	Render(&buf, strings.NewReader(input), styles)
+	got := ansi.Strip(buf.String())
+
+	for _, line := range strings.Split(got, "\n") {
+		if w := ansi.StringWidth(line); w > 80 {
+			t.Errorf("frontmatter line exceeds width 80 (got %d): %q", w, line)
+		}
+	}
+	if !strings.Contains(got, "description: >") {
+		t.Errorf("expected `description: >` fold marker in output\nGot:\n%s", got)
+	}
+	// The description text is split across rows but the words must all
+	// be present — sample a couple of distinctive tokens.
+	for _, want := range []string{"iceberg analyze", "periodic audit"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("description word %q missing from wrapped output\nGot:\n%s", want, got)
+		}
+	}
+}
+
+func TestMarkdownFrontmatterFencesDimmed(t *testing.T) {
+	// The --- fences must carry the Comment style (Foreground 8 + Faint).
+	input := "---\nname: foo\n---\n\nBody."
+	var buf strings.Builder
+	Render(&buf, strings.NewReader(input), stripes.DefaultStyles)
+	out := buf.String()
+	wantFence := stripes.DefaultStyles.Comment.Render("---")
+	if !strings.Contains(out, wantFence) {
+		t.Errorf("expected Comment-styled --- fence in output\nwant fence: %q\ngot:\n%q", wantFence, out)
+	}
+	if n := strings.Count(out, wantFence); n != 2 {
+		t.Errorf("expected exactly 2 dimmed --- fences, got %d", n)
 	}
 }
 

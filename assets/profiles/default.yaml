@@ -14,7 +14,7 @@ styles:
   text:    {color: "7"}
   string:  {color: "2"}
   number:  {color: "7"}
-  boolean: {color: "7"}
+  boolean: {color: "13"}
   "null":  {color: "8"}
   syntax:  {color: "7", bold: true}
   code:    {color: "183"}
