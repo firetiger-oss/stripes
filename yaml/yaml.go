@@ -10,6 +10,9 @@ import (
 	"strconv"
 	"strings"
 
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/clipperhouse/displaywidth"
 	"github.com/firetiger-oss/stripes"
 	"gopkg.in/yaml.v3"
 )
@@ -42,15 +45,15 @@ func Render(w io.Writer, r io.Reader, styles *stripes.Styles) {
 		return
 	}
 
-	printYAMLNode(w, &node, 0, styles)
+	printYAMLNode(w, &node, 0, 0, styles)
 }
 
-func printYAMLNode(w io.Writer, node *yaml.Node, depth int, styles *stripes.Styles) {
+func printYAMLNode(w io.Writer, node *yaml.Node, depth, inlinePrefix int, styles *stripes.Styles) {
 	switch node.Kind {
 	case yaml.DocumentNode:
 		// Document node, render its content
 		for _, child := range node.Content {
-			printYAMLNode(w, child, depth, styles)
+			printYAMLNode(w, child, depth, 0, styles)
 		}
 
 	case yaml.MappingNode:
@@ -76,10 +79,15 @@ func printYAMLNode(w io.Writer, node *yaml.Node, depth int, styles *stripes.Styl
 			io.WriteString(w, styles.Name.Render(keyNode.Value))
 			io.WriteString(w, styles.Syntax.Render(":"))
 
+			// Columns consumed on the current row before an inline scalar
+			// value would start: key + ":" + " " (+ "&anchor " if any).
+			valuePrefix := ansi.StringWidth(keyNode.Value) + 2
+
 			// Handle anchor definitions for the value
 			if valueNode.Anchor != "" {
 				io.WriteString(w, " ")
 				io.WriteString(w, styles.Anchor.Render("&"+valueNode.Anchor))
+				valuePrefix += 1 + 1 + len(valueNode.Anchor) // " " + "&" + anchor name
 			}
 
 			// Render value
@@ -88,15 +96,11 @@ func printYAMLNode(w io.Writer, node *yaml.Node, depth int, styles *stripes.Styl
 					io.WriteString(w, " ")
 				}
 				io.WriteString(w, "\n")
-				indentStr := styles.Indent
-				if indentStr == "" {
-					indentStr = "  "
-				}
-				writer := stripes.NewPrefixWriter(w, indentStr)
-				printYAMLNode(writer, valueNode, depth+1, styles)
+				writer := stripes.NewPrefixWriter(w, indentStr(styles))
+				printYAMLNode(writer, valueNode, depth+1, 0, styles)
 			} else {
 				io.WriteString(w, " ")
-				printYAMLNode(w, valueNode, depth, styles)
+				printYAMLNode(w, valueNode, depth, valuePrefix, styles)
 			}
 
 			// Line comment for the key-value pair
@@ -119,21 +123,19 @@ func printYAMLNode(w io.Writer, node *yaml.Node, depth int, styles *stripes.Styl
 			io.WriteString(w, styles.Syntax.Render("- "))
 
 			// Handle anchor definitions for sequence items
+			itemPrefix := 2 // "- "
 			if child.Anchor != "" {
 				io.WriteString(w, styles.Anchor.Render("&"+child.Anchor))
 				io.WriteString(w, " ")
+				itemPrefix += 1 + len(child.Anchor) + 1 // "&" + anchor + " "
 			}
 
 			if child.Kind == yaml.MappingNode || child.Kind == yaml.SequenceNode {
 				io.WriteString(w, "\n")
-				indentStr := styles.Indent
-				if indentStr == "" {
-					indentStr = "  "
-				}
-				writer := stripes.NewPrefixWriter(w, indentStr)
-				printYAMLNode(writer, child, depth+1, styles)
+				writer := stripes.NewPrefixWriter(w, indentStr(styles))
+				printYAMLNode(writer, child, depth+1, 0, styles)
 			} else {
-				printYAMLNode(w, child, depth, styles)
+				printYAMLNode(w, child, depth, itemPrefix, styles)
 			}
 		}
 
@@ -176,11 +178,24 @@ func printYAMLNode(w io.Writer, node *yaml.Node, depth int, styles *stripes.Styl
 				}
 				styledValue = result.String()
 			default:
-				// For regular strings, apply appropriate styling based on quote style
+				var style lipgloss.Style
 				if node.Style == yaml.DoubleQuotedStyle || node.Style == yaml.SingleQuotedStyle {
-					styledValue = styles.String.Render(value)
+					style = styles.String
 				} else {
-					styledValue = styles.Text.Render(value)
+					style = styles.Text
+				}
+				indentW := displaywidth.String(indentStr(styles))
+				inlineWidth := depth*indentW + inlinePrefix + displaywidth.String(value)
+				if styles.Width > 0 && inlineWidth > styles.Width {
+					// Once we commit to folded style the value sits on its
+					// own rows, so the wrap budget is independent of the
+					// key length: Width minus the PrefixWriter indent
+					// chain (depth*indentW) and the 2-char continuation
+					// indent the fold layout adds itself.
+					wrapWidth := styles.Width - depth*indentW - 2
+					styledValue = foldScalar(value, style, wrapWidth, styles)
+				} else {
+					styledValue = style.Render(value)
 				}
 			}
 		}
@@ -221,6 +236,41 @@ func printYAMLNode(w io.Writer, node *yaml.Node, depth int, styles *stripes.Styl
 		io.WriteString(w, "\n")
 		io.WriteString(w, styles.Comment.Render(comment))
 	}
+}
+
+// indentStr returns styles.Indent, defaulting to two spaces. The yaml
+// renderer threads this through PrefixWriter for nested depth and uses
+// its display width when computing fold-width budgets.
+func indentStr(styles *stripes.Styles) string {
+	if styles.Indent == "" {
+		return "  "
+	}
+	return styles.Indent
+}
+
+// foldScalar renders value in YAML folded style: a leading ">" marker
+// followed by each wrapped line on its own indented row. wrapWidth is
+// the budget for the wrapped content (excludes the 2-char continuation
+// indent that the folded layout adds itself). Style is applied
+// per-line; ansi.Wrap operates on the raw text and is grapheme- and
+// display-width-aware so the resulting lines fit a terminal of
+// wrapWidth columns even with wide runes (em-dash, CJK, emoji).
+func foldScalar(value string, style lipgloss.Style, wrapWidth int, styles *stripes.Styles) string {
+	if wrapWidth < 1 {
+		wrapWidth = 1
+	}
+	wrapped := ansi.Wrap(value, wrapWidth, "")
+	var b strings.Builder
+	b.WriteString(styles.Syntax.Render(">"))
+	for _, line := range strings.Split(wrapped, "\n") {
+		if line == "" {
+			b.WriteString("\n")
+		} else {
+			b.WriteString("\n  ")
+			b.WriteString(style.Render(line))
+		}
+	}
+	return b.String()
 }
 
 // isNumber checks if a string represents a numeric scalar (int, uint,
