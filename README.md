@@ -55,7 +55,7 @@ import _ "github.com/firetiger-oss/stripes/all"
 | `text/x-go-mod` etc.             | `stripes/gomod`      | `RenderMod`, `RenderSum`, `RenderWork`, `RenderVendorModules` |
 | `text/markdown`                  | `stripes/markdown`   | `Render`                             |
 | `text/x-source-code`             | `stripes/code`       | `New` (factory; pass chroma lexer name) |
-| `application/wasm`               | `stripes/code`       | `RenderWasm` (requires `wasm2wat` from WABT) |
+| `application/wasm`               | `stripes/code`       | `RenderWasm` (requires `wasm-tools`, or `wasm2wat` from WABT as fallback) |
 | `application/protobuf`           | `stripes/protobuf`   | `New` (factory; pass message descriptor) |
 | `application/vnd.apache.parquet` | `stripes/parquet`    | `Render`                             |
 | `text/x-txtar`                   | `stripes/txtar`      | `Render` (recursive per-file dispatch) |
@@ -69,8 +69,15 @@ parameters and return a `Renderer`.
 
 `.wat`/`.wast` text-format WebAssembly is detected automatically and
 routed through chroma's `wat` lexer. Binary `.wasm` rendering shells
-out to `wasm2wat` from [WABT](https://github.com/WebAssembly/wabt);
-install via `brew install wabt` or `apt install wabt`.
+out to `wasm-tools print` from
+[wasm-tools](https://github.com/bytecodealliance/wasm-tools), which
+tracks the current WebAssembly specification (component model, GC,
+exception handling, …); install via `brew install wasm-tools` or
+`cargo install wasm-tools`. When `wasm-tools` is not on `$PATH`,
+rendering falls back to `wasm2wat` from
+[WABT](https://github.com/WebAssembly/wabt) (`brew install wabt` or
+`apt install wabt`), which may fail on modules using newer spec
+features.
 
 Terraform `.tf` and `.hcl` files are picked up by chroma's built-in
 filename match; `.tfvars` is routed to the same `terraform` lexer.

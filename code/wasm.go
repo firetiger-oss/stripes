@@ -23,25 +23,50 @@ func init() {
 
 // RenderWasm writes a styled rendering of the binary WebAssembly module
 // (application/wasm) read from r to w. It disassembles the input by
-// invoking the external wasm2wat tool from WABT, then highlights the
-// resulting WAT text with chroma's wat lexer.
+// invoking an external tool and highlights the resulting WAT text with
+// chroma's wat lexer.
 //
-// wasm2wat must be on $PATH. When it is not, RenderWasm writes a
-// single-line diagnostic instead of failing silently. Install via "brew
-// install wabt" on macOS or "apt install wabt" on Debian-derived systems.
+// The preferred backend is "wasm-tools print" from the bytecodealliance
+// (https://github.com/bytecodealliance/wasm-tools), which tracks the
+// current WebAssembly specification including the component model. When
+// wasm-tools is not on $PATH, RenderWasm falls back to "wasm2wat" from
+// WABT (https://github.com/WebAssembly/wabt). When neither is
+// available, RenderWasm writes a single-line diagnostic instead of
+// failing silently. Install via "cargo install wasm-tools" or "brew
+// install wasm-tools"; install WABT via "brew install wabt" or "apt
+// install wabt".
 func RenderWasm(w io.Writer, r io.Reader, styles *stripes.Styles) {
-	bin, err := exec.LookPath("wasm2wat")
-	if err != nil {
-		fmt.Fprintln(w, "ERROR: wasm2wat not found in $PATH; install WABT to render binary .wasm files")
-		return
-	}
-
 	src, err := io.ReadAll(r)
 	if err != nil {
 		fmt.Fprintf(w, "ERROR: %s\n", err)
 		return
 	}
 
+	if bin, err := exec.LookPath("wasm-tools"); err == nil {
+		runWasmTools(w, bin, src, styles)
+		return
+	}
+	if bin, err := exec.LookPath("wasm2wat"); err == nil {
+		runWasm2Wat(w, bin, src, styles)
+		return
+	}
+	fmt.Fprintln(w, "ERROR: neither wasm-tools nor wasm2wat found in $PATH; install wasm-tools (https://github.com/bytecodealliance/wasm-tools) or WABT to render binary .wasm files")
+}
+
+func runWasmTools(w io.Writer, bin string, src []byte, styles *stripes.Styles) {
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(bin, "print", "--name-unnamed", "--fold-instructions", "--color", "never", "-")
+	cmd.Stdin = bytes.NewReader(src)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		writeBackendError(w, "wasm-tools", stderr.String(), err)
+		return
+	}
+	highlightCode(w, stdout.Bytes(), "wat", styles)
+}
+
+func runWasm2Wat(w io.Writer, bin string, src []byte, styles *stripes.Styles) {
 	tmp, err := os.CreateTemp("", "stripes-*.wasm")
 	if err != nil {
 		fmt.Fprintf(w, "ERROR: %s\n", err)
@@ -63,16 +88,19 @@ func RenderWasm(w io.Writer, r io.Reader, styles *stripes.Styles) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if i := strings.IndexByte(msg, '\n'); i >= 0 {
-			msg = msg[:i]
-		}
-		if msg == "" {
-			msg = err.Error()
-		}
-		fmt.Fprintf(w, "ERROR: wasm2wat: %s\n", msg)
+		writeBackendError(w, "wasm2wat", stderr.String(), err)
 		return
 	}
-
 	highlightCode(w, stdout.Bytes(), "wat", styles)
+}
+
+func writeBackendError(w io.Writer, tool, stderr string, err error) {
+	msg := strings.TrimSpace(stderr)
+	if i := strings.IndexByte(msg, '\n'); i >= 0 {
+		msg = msg[:i]
+	}
+	if msg == "" {
+		msg = err.Error()
+	}
+	fmt.Fprintf(w, "ERROR: %s: %s\n", tool, msg)
 }
