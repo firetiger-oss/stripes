@@ -1,0 +1,9 @@
+# --bearer-token installs a bearer-token http.RoundTripper that signs all
+# outbound requests with `Authorization: Bearer <token>`.
+exec stripes --color=never -p cat --bearer-token $STRIPES_TEST_BEARER_TOKEN $STRIPES_TEST_HTTP_BEARER
+stdout '"ok"'
+stdout 'true'
+
+# Without the token, the test server returns 401.
+! exec stripes --color=never -p cat $STRIPES_TEST_HTTP_BEARER
+stderr '401'
