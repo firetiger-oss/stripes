@@ -36,6 +36,8 @@ type Styles struct {
 	Comment    lipgloss.Style
 	Title      lipgloss.Style
 	LineNumber lipgloss.Style
+	Insertion  lipgloss.Style
+	Deletion   lipgloss.Style
 	Heading    [6]lipgloss.Style
 	Columns    lipgloss.Style
 	Rows       lipgloss.Style
@@ -69,6 +71,8 @@ var DefaultStyles = &Styles{
 	Comment:    lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Faint(true),
 	Title:      lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Bold(true),
 	LineNumber: lipgloss.NewStyle().Foreground(lipgloss.Color("244")),
+	Insertion:  lipgloss.NewStyle().Foreground(lipgloss.Color("2")),
+	Deletion:   lipgloss.NewStyle().Foreground(lipgloss.Color("1")),
 	Heading: [6]lipgloss.Style{
 		lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Bold(true), // H1: bright blue (rule below)
 		lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Bold(true), // H2: bright blue (underlined)

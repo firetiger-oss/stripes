@@ -5,6 +5,7 @@ go 1.25.5
 require (
 	charm.land/lipgloss/v2 v2.0.3
 	github.com/alecthomas/chroma/v2 v2.24.1
+	github.com/bluekeyes/go-gitdiff v0.8.1
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/clipperhouse/displaywidth v0.11.0
