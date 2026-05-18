@@ -15,6 +15,7 @@ import (
 	// early; it also registers application/wasm.
 	_ "github.com/firetiger-oss/stripes/code"
 	_ "github.com/firetiger-oss/stripes/csv"
+	_ "github.com/firetiger-oss/stripes/diff"
 	_ "github.com/firetiger-oss/stripes/dockerfile"
 	_ "github.com/firetiger-oss/stripes/gomod"
 	// html is imported before xml so HTML wins when content starts with
