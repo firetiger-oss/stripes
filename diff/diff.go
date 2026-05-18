@@ -208,4 +208,3 @@ func countDigits(b []byte) int {
 	}
 	return i
 }
-
