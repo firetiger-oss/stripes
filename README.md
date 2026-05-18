@@ -72,6 +72,10 @@ routed through chroma's `wat` lexer. Binary `.wasm` rendering shells
 out to `wasm2wat` from [WABT](https://github.com/WebAssembly/wabt);
 install via `brew install wabt` or `apt install wabt`.
 
+Terraform `.tf` and `.hcl` files are picked up by chroma's built-in
+filename match; `.tfvars` is routed to the same `terraform` lexer.
+`.tfstate` and `.tfstate.backup` are routed to the JSON renderer.
+
 ### [stripes.Func](https://pkg.go.dev/github.com/firetiger-oss/stripes#Func)
 
 Pick a [`Renderer`](https://pkg.go.dev/github.com/firetiger-oss/stripes#Renderer)

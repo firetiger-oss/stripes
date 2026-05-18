@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -19,10 +20,18 @@ func init() {
 	stripes.Register(stripes.Format{
 		Name:        "json",
 		ContentType: "application/json",
-		Extensions:  []string{".json"},
+		Extensions:  []string{".json", ".tfstate"},
+		MatchPath:   matchTFStateBackup,
 		Detect:      detectJSON,
 		RendererFor: stripes.Simple(Render),
 	})
+}
+
+// matchTFStateBackup matches Terraform state backup files. The plain
+// .tfstate extension is registered above; .tfstate.backup needs a path
+// rule because filepath.Ext returns ".backup".
+func matchTFStateBackup(path string) bool {
+	return strings.HasSuffix(strings.ToLower(filepath.Base(path)), ".tfstate.backup")
 }
 
 // jsonContext tracks the current rendering context for indentation.
