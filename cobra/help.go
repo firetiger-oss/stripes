@@ -4,81 +4,96 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-// renderHelp writes a fully styled help page for cmd to w.
+// renderHelp writes a fully styled help page for cmd to w. The plain-text
+// output (ANSI stripped) matches cobra's default help output byte-for-byte;
+// styles are layered on top via [Styles].
 func renderHelp(cmd *cobra.Command, w io.Writer, s *Styles) {
-	b := &strings.Builder{}
-
-	if d := description(cmd); d != "" {
-		fmt.Fprintln(b, s.Description.Render(d))
-		b.WriteByte('\n')
+	desc := trimRightSpace(cmd.Long)
+	if desc == "" {
+		desc = trimRightSpace(cmd.Short)
 	}
-
-	writeUsage(b, cmd, s)
-
-	if len(cmd.Aliases) > 0 {
-		fmt.Fprintln(b, s.Title.Render("Aliases:"))
-		fmt.Fprintf(b, "%s%s\n\n", s.Indent, strings.Join(cmd.Aliases, ", "))
+	if desc != "" {
+		fmt.Fprintln(w, s.Description.Render(desc))
+		fmt.Fprintln(w)
 	}
-
-	if cmd.HasExample() {
-		fmt.Fprintln(b, s.Title.Render("Examples:"))
-		for _, line := range strings.Split(strings.TrimRight(cmd.Example, "\n"), "\n") {
-			fmt.Fprintf(b, "%s%s\n", s.Indent, s.Example.Render(line))
-		}
-		b.WriteByte('\n')
+	if cmd.Runnable() || cmd.HasSubCommands() {
+		writeUsage(w, cmd, s)
 	}
-
-	writeCommands(b, cmd, s)
-	writeFlags(b, cmd, s)
-
-	if cmd.HasAvailableSubCommands() {
-		hint := fmt.Sprintf(`Use "%s [command] --help" for more information about a command.`, cmd.CommandPath())
-		fmt.Fprintln(b, s.Hint.Render(hint))
-	}
-
-	io.WriteString(w, b.String())
 }
 
-// renderUsage writes a compact usage block to w. Cobra calls SetUsageFunc
-// after a flag-parse error; we print just the usage line and a hint.
+// renderUsage writes the usage block for cmd to w. The plain-text output
+// matches cobra's default usage output (defaultUsageFunc) byte-for-byte.
 func renderUsage(cmd *cobra.Command, w io.Writer, s *Styles) {
-	b := &strings.Builder{}
-	writeUsage(b, cmd, s)
-	hint := fmt.Sprintf(`Run "%s --help" for usage.`, cmd.CommandPath())
-	fmt.Fprintln(b, s.Hint.Render(hint))
-	io.WriteString(w, b.String())
+	writeUsage(w, cmd, s)
 }
 
-// description returns Long if set, falling back to Short.
-func description(cmd *cobra.Command) string {
-	if cmd.Long != "" {
-		return strings.TrimSpace(cmd.Long)
-	}
-	return strings.TrimSpace(cmd.Short)
-}
-
-func writeUsage(b *strings.Builder, cmd *cobra.Command, s *Styles) {
-	fmt.Fprintln(b, s.Title.Render("Usage:"))
+// writeUsage mirrors cobra's defaultUsageFunc: the section ordering, the
+// inter-section "\n\n" prefixing, and the trailing newline all match.
+func writeUsage(w io.Writer, cmd *cobra.Command, s *Styles) {
+	fmt.Fprint(w, s.Title.Render("Usage:"))
 	if cmd.Runnable() {
-		fmt.Fprintf(b, "%s%s\n", s.Indent, styleUseLine(cmd, s))
+		fmt.Fprintf(w, "\n  %s", styleUseLine(cmd, s))
 	}
 	if cmd.HasAvailableSubCommands() {
-		fmt.Fprintf(b, "%s%s %s\n",
-			s.Indent,
+		fmt.Fprintf(w, "\n  %s %s",
 			s.Program.Render(cmd.CommandPath()),
 			s.Argument.Render("[command]"),
 		)
 	}
-	b.WriteByte('\n')
+	if len(cmd.Aliases) > 0 {
+		fmt.Fprintf(w, "\n\n%s\n  %s",
+			s.Title.Render("Aliases:"),
+			cmd.NameAndAliases(),
+		)
+	}
+	if cmd.HasExample() {
+		fmt.Fprintf(w, "\n\n%s\n%s",
+			s.Title.Render("Examples:"),
+			styleExample(cmd.Example, s),
+		)
+	}
+	if cmd.HasAvailableSubCommands() {
+		writeSubcommands(w, cmd, s)
+	}
+	if cmd.HasAvailableLocalFlags() {
+		fmt.Fprintf(w, "\n\n%s\n%s",
+			s.Title.Render("Flags:"),
+			trimRightSpace(renderFlagUsages(cmd.LocalFlags(), s)),
+		)
+	}
+	if cmd.HasAvailableInheritedFlags() {
+		fmt.Fprintf(w, "\n\n%s\n%s",
+			s.Title.Render("Global Flags:"),
+			trimRightSpace(renderFlagUsages(cmd.InheritedFlags(), s)),
+		)
+	}
+	if cmd.HasHelpSubCommands() {
+		fmt.Fprintf(w, "\n\n%s", s.Title.Render("Additional help topics:"))
+		for _, sub := range cmd.Commands() {
+			if sub.IsAdditionalHelpTopicCommand() {
+				fmt.Fprintf(w, "\n  %s %s",
+					rpad(sub.CommandPath(), sub.CommandPathPadding()),
+					sub.Short,
+				)
+			}
+		}
+	}
+	if cmd.HasAvailableSubCommands() {
+		hint := fmt.Sprintf(`Use "%s [command] --help" for more information about a command.`, cmd.CommandPath())
+		fmt.Fprintf(w, "\n\n%s", s.Hint.Render(hint))
+	}
+	fmt.Fprintln(w)
 }
 
 // styleUseLine restyles the result of cmd.UseLine: program name in Program
-// style, anything that looks like a flag or placeholder in Argument style.
+// style, anything that looks like a flag in Flag style, placeholders in
+// Argument style.
 func styleUseLine(cmd *cobra.Command, s *Styles) string {
 	use := cmd.UseLine()
 	path := cmd.CommandPath()
@@ -89,180 +104,216 @@ func styleUseLine(cmd *cobra.Command, s *Styles) string {
 	if rest == "" {
 		return out
 	}
-	// Style placeholders ([flags], <arg>, etc.) and any flag tokens.
 	parts := strings.Fields(rest)
 	styled := make([]string, len(parts))
 	for i, p := range parts {
-		switch {
-		case strings.HasPrefix(p, "-"):
+		if strings.HasPrefix(p, "-") {
 			styled[i] = s.Flag.Render(p)
-		default:
+		} else {
 			styled[i] = s.Argument.Render(p)
 		}
 	}
 	return out + " " + strings.Join(styled, " ")
 }
 
-func writeCommands(b *strings.Builder, cmd *cobra.Command, s *Styles) {
-	if !cmd.HasAvailableSubCommands() {
-		return
+// styleExample wraps each line of example text in the Example style,
+// preserving the original line breaks so the plain-text output is
+// byte-identical to cmd.Example.
+func styleExample(example string, s *Styles) string {
+	lines := strings.Split(example, "\n")
+	for i, line := range lines {
+		if line != "" {
+			lines[i] = s.Example.Render(line)
+		}
 	}
+	return strings.Join(lines, "\n")
+}
 
-	groups := cmd.Groups()
-	type bucket struct {
-		title string
-		cmds  []*cobra.Command
-	}
-	buckets := make([]*bucket, 0, len(groups)+1)
-	byID := make(map[string]*bucket, len(groups))
-	for _, g := range groups {
-		bk := &bucket{title: g.Title}
-		buckets = append(buckets, bk)
-		byID[g.ID] = bk
-	}
-	// Subcommands without a group fall into a default bucket appended last.
-	var ungrouped *bucket
-	for _, sub := range cmd.Commands() {
-		if !sub.IsAvailableCommand() && sub.Name() != "help" {
-			continue
-		}
-		if bk, ok := byID[sub.GroupID]; ok {
-			bk.cmds = append(bk.cmds, sub)
-			continue
-		}
-		if ungrouped == nil {
-			ungrouped = &bucket{title: "Available Commands:"}
-			buckets = append(buckets, ungrouped)
-		}
-		ungrouped.cmds = append(ungrouped.cmds, sub)
-	}
-
-	for _, bk := range buckets {
-		if len(bk.cmds) == 0 {
-			continue
-		}
-		fmt.Fprintln(b, s.Title.Render(bk.title))
-		width := 0
-		for _, c := range bk.cmds {
-			if n := len(c.Name()); n > width {
-				width = n
+// writeSubcommands renders the subcommand sections, mirroring cobra's
+// defaultUsageFunc: a single "Available Commands:" block when no groups,
+// otherwise per-group blocks plus an "Additional Commands:" block for
+// ungrouped commands.
+func writeSubcommands(w io.Writer, cmd *cobra.Command, s *Styles) {
+	cmds := cmd.Commands()
+	if len(cmd.Groups()) == 0 {
+		fmt.Fprintf(w, "\n\n%s", s.Title.Render("Available Commands:"))
+		for _, sub := range cmds {
+			if sub.IsAvailableCommand() || sub.Name() == "help" {
+				writeSubcommandLine(w, sub, s)
 			}
 		}
-		for _, c := range bk.cmds {
-			pad := strings.Repeat(" ", width-len(c.Name()))
-			fmt.Fprintf(b, "%s%s%s   %s\n",
-				s.Indent,
-				s.Command.Render(c.Name()),
-				pad,
-				s.Description.Render(c.Short),
-			)
+		return
+	}
+	for _, group := range cmd.Groups() {
+		fmt.Fprintf(w, "\n\n%s", s.Title.Render(group.Title))
+		for _, sub := range cmds {
+			if sub.GroupID == group.ID && (sub.IsAvailableCommand() || sub.Name() == "help") {
+				writeSubcommandLine(w, sub, s)
+			}
 		}
-		b.WriteByte('\n')
+	}
+	if !cmd.AllChildCommandsHaveGroup() {
+		fmt.Fprintf(w, "\n\n%s", s.Title.Render("Additional Commands:"))
+		for _, sub := range cmds {
+			if sub.GroupID == "" && (sub.IsAvailableCommand() || sub.Name() == "help") {
+				writeSubcommandLine(w, sub, s)
+			}
+		}
 	}
 }
 
-func writeFlags(b *strings.Builder, cmd *cobra.Command, s *Styles) {
-	local := collectFlags(cmd.LocalFlags())
-	inherited := collectFlags(cmd.InheritedFlags())
-
-	if len(local) > 0 {
-		fmt.Fprintln(b, s.Title.Render("Flags:"))
-		writeFlagList(b, local, s)
-		b.WriteByte('\n')
+func writeSubcommandLine(w io.Writer, sub *cobra.Command, s *Styles) {
+	name := sub.Name()
+	pad := sub.NamePadding() - len(name)
+	if pad < 0 {
+		pad = 0
 	}
-	if len(inherited) > 0 {
-		fmt.Fprintln(b, s.Title.Render("Global Flags:"))
-		writeFlagList(b, inherited, s)
-		b.WriteByte('\n')
-	}
+	fmt.Fprintf(w, "\n  %s%s %s",
+		s.Command.Render(name),
+		strings.Repeat(" ", pad),
+		sub.Short,
+	)
 }
 
-func collectFlags(set *pflag.FlagSet) []*pflag.Flag {
-	var out []*pflag.Flag
+// renderFlagUsages mirrors pflag.FlagSet.FlagUsagesWrapped(0), applying
+// styles to recognized tokens. The alignment math uses plain-text widths
+// (matching pflag's \x00-based maxlen-sidx formula), then styles are
+// layered onto the emitted tokens — so ANSI escapes don't perturb the
+// column alignment.
+func renderFlagUsages(set *pflag.FlagSet, s *Styles) string {
+	type row struct {
+		flagToken  string // "-X, --name" or "    --name"
+		typeToken  string // typename ("string", "int", "file", ...) or ""
+		noOptToken string // "[=val]" or `[="val"]` or ""
+		usage      string
+		defValue   string // `(default ...)` or ""
+		deprecated string // `(DEPRECATED: ...)` or ""
+		sidx       int    // plain-text width of the name column
+	}
+
+	var rows []row
+	maxlen := 0
 	set.VisitAll(func(f *pflag.Flag) {
 		if f.Hidden {
 			return
 		}
-		out = append(out, f)
-	})
-	return out
-}
-
-func writeFlagList(b *strings.Builder, flags []*pflag.Flag, s *Styles) {
-	// Pre-render the "name column" (shorthand + long + type) for each flag
-	// without styling, so we can pad to the longest plain width. Styles are
-	// re-applied below over the same tokens.
-	type row struct {
-		shortToken string // "-s," or "   "
-		longToken  string // "--name"
-		typeToken  string // "<int>" or ""
-		usage      string
-		defValue   string
-	}
-	rows := make([]row, len(flags))
-	plainWidths := make([]int, len(flags))
-	maxWidth := 0
-	for i, f := range flags {
-		typeName, usage := pflag.UnquoteUsage(f)
-		r := row{
-			longToken: "--" + f.Name,
-			usage:     usage,
-		}
+		r := row{}
 		if f.Shorthand != "" && f.ShorthandDeprecated == "" {
-			r.shortToken = "-" + f.Shorthand + ","
+			r.flagToken = fmt.Sprintf("  -%s, --%s", f.Shorthand, f.Name)
 		} else {
-			r.shortToken = "   "
+			r.flagToken = fmt.Sprintf("      --%s", f.Name)
 		}
-		if typeName != "" {
-			r.typeToken = "<" + typeName + ">"
-		}
-		if showDefault(f) {
-			r.defValue = fmt.Sprintf("(default %s)", quoteDefault(f))
-		}
-		rows[i] = r
 
-		w := len(r.shortToken) + 1 + len(r.longToken)
+		typeName, usage := pflag.UnquoteUsage(f)
+		r.typeToken = typeName
+		r.usage = usage
+
+		if f.NoOptDefVal != "" {
+			switch f.Value.Type() {
+			case "string":
+				r.noOptToken = fmt.Sprintf("[=%q]", f.NoOptDefVal)
+			case "bool", "boolfunc":
+				if f.NoOptDefVal != "true" {
+					r.noOptToken = fmt.Sprintf("[=%s]", f.NoOptDefVal)
+				}
+			case "count":
+				if f.NoOptDefVal != "+1" {
+					r.noOptToken = fmt.Sprintf("[=%s]", f.NoOptDefVal)
+				}
+			default:
+				r.noOptToken = fmt.Sprintf("[=%s]", f.NoOptDefVal)
+			}
+		}
+
+		// Plain-text width of the name column.
+		w := len(r.flagToken)
 		if r.typeToken != "" {
 			w += 1 + len(r.typeToken)
 		}
-		plainWidths[i] = w
-		if w > maxWidth {
-			maxWidth = w
+		w += len(r.noOptToken)
+		r.sidx = w
+		// pflag tracks the line length with a trailing \x00 sentinel, so
+		// effective maxlen is sidx+1.
+		if w+1 > maxlen {
+			maxlen = w + 1
 		}
-	}
 
-	for i, r := range rows {
-		pad := strings.Repeat(" ", maxWidth-plainWidths[i])
-		nameCol := r.shortToken
-		if strings.HasPrefix(nameCol, "-") {
-			nameCol = s.Flag.Render(r.shortToken)
+		if !defaultIsZeroValue(f) {
+			if f.Value.Type() == "string" {
+				r.defValue = fmt.Sprintf(" (default %q)", f.DefValue)
+			} else {
+				r.defValue = fmt.Sprintf(" (default %s)", f.DefValue)
+			}
 		}
-		nameCol += " " + s.Flag.Render(r.longToken)
+		if f.Deprecated != "" {
+			r.deprecated = fmt.Sprintf(" (DEPRECATED: %s)", f.Deprecated)
+		}
+		rows = append(rows, r)
+	})
+
+	var b strings.Builder
+	for _, r := range rows {
+		// Styled name column.
+		nameCol := s.Flag.Render(r.flagToken)
 		if r.typeToken != "" {
 			nameCol += " " + s.Argument.Render(r.typeToken)
 		}
-		line := s.Indent + nameCol + pad + "   " + s.Description.Render(r.usage)
-		if r.defValue != "" {
-			line += " " + s.Default.Render(r.defValue)
+		if r.noOptToken != "" {
+			nameCol += s.Argument.Render(r.noOptToken)
 		}
-		fmt.Fprintln(b, line)
+		// Padding so the description column lines up (uses plain widths).
+		spacing := strings.Repeat(" ", maxlen-r.sidx)
+		// Description column.
+		desc := s.Description.Render(r.usage)
+		if r.defValue != "" {
+			desc += s.Default.Render(r.defValue)
+		}
+		if r.deprecated != "" {
+			desc += s.Default.Render(r.deprecated)
+		}
+		// Match pflag's Fprintln(buf, nameCol, spacing, desc) layout: a
+		// single space separates each argument, so the gap between the
+		// name column and the description is maxlen-sidx+2 chars (>= 3).
+		fmt.Fprintf(&b, "%s %s %s\n", nameCol, spacing, desc)
 	}
+	return b.String()
 }
 
-// showDefault returns true when a flag has a meaningful default worth printing.
-func showDefault(f *pflag.Flag) bool {
+// defaultIsZeroValue mirrors pflag's private (*Flag).defaultIsZeroValue.
+// Switching on the type *string* (rather than the private value types)
+// covers every standard pflag type; unknown custom types fall through to
+// pflag's catch-all comparison against the common zero strings.
+func defaultIsZeroValue(f *pflag.Flag) bool {
+	switch f.Value.Type() {
+	case "bool", "boolfunc":
+		return f.DefValue == "false" || f.DefValue == ""
+	case "duration":
+		return f.DefValue == "0" || f.DefValue == "0s"
+	case "int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64",
+		"count", "float32", "float64":
+		return f.DefValue == "0"
+	case "string":
+		return f.DefValue == ""
+	case "ip", "ipMask", "ipNet":
+		return f.DefValue == "<nil>"
+	case "intSlice", "stringSlice", "stringArray":
+		return f.DefValue == "[]"
+	}
 	switch f.DefValue {
-	case "", "false", "[]", "0", "0s":
-		return false
+	case "false", "<nil>", "", "0":
+		return true
 	}
-	return true
+	return false
 }
 
-// quoteDefault wraps string-valued defaults in quotes; numeric/bool defaults
-// are left bare to match cobra's own help formatting.
-func quoteDefault(f *pflag.Flag) string {
-	if f.Value.Type() == "string" {
-		return fmt.Sprintf("%q", f.DefValue)
+func rpad(s string, n int) string {
+	if pad := n - len(s); pad > 0 {
+		return s + strings.Repeat(" ", pad)
 	}
-	return f.DefValue
+	return s
+}
+
+func trimRightSpace(s string) string {
+	return strings.TrimRightFunc(s, unicode.IsSpace)
 }
