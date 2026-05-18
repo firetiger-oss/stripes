@@ -104,6 +104,16 @@ func TestDetect(t *testing.T) {
 		// txtar
 		{"foo.txtar", "x", "text/x-txtar"},
 		{"archive.TXTAR", "x", "text/x-txtar"},
+
+		// Terraform: .tf and .hcl come from chroma's filename match;
+		// .tfvars is routed explicitly. State files are JSON.
+		{"foo.tf", "x", "text/x-source-code; lang=Terraform"},
+		{"foo.hcl", "x", "text/x-source-code; lang=HCL"},
+		{"foo.tfvars", "x", "text/x-source-code; lang=terraform"},
+		{"FOO.TFVARS", "x", "text/x-source-code; lang=terraform"},
+		{"terraform.tfstate", "x", "application/json"},
+		{"path/to/terraform.tfstate.backup", "x", "application/json"},
+		{"TERRAFORM.TFSTATE.BACKUP", "x", "application/json"},
 	}
 
 	for _, tt := range tests {

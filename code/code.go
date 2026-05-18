@@ -39,6 +39,8 @@ func init() {
 		switch strings.ToLower(filepath.Ext(base)) {
 		case ".wat", ".wast":
 			return mime.FormatMediaType("text/x-source-code", map[string]string{"lang": "wat"}), true
+		case ".tfvars":
+			return mime.FormatMediaType("text/x-source-code", map[string]string{"lang": "terraform"}), true
 		}
 		if lex := chromalexers.Match(base); lex != nil {
 			return mime.FormatMediaType("text/x-source-code", map[string]string{"lang": lex.Config().Name}), true
