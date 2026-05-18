@@ -1,0 +1,9 @@
+# file:// URIs are dispatched through the tigerblock storage backend the
+# same way local paths are. Content-type detection still keys off the URI's
+# basename (input.json → application/json) via displayName.
+exec stripes --color=never -p cat file://$WORK/input.json
+stdout 'hello'
+stdout 'world'
+
+-- input.json --
+{"hello": "world"}

@@ -17,25 +17,42 @@ import (
 	"bufio"
 	"bytes"
 	"cmp"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/firetiger-oss/stripes"
 	_ "github.com/firetiger-oss/stripes/all"
+	basicauth "github.com/firetiger-oss/tigerblock/secret/authn/basic"
+	bearerauth "github.com/firetiger-oss/tigerblock/secret/authn/bearer"
+	"github.com/firetiger-oss/tigerblock/storage"
+	_ "github.com/firetiger-oss/tigerblock/storage/file"
+	_ "github.com/firetiger-oss/tigerblock/storage/gs"
+	_ "github.com/firetiger-oss/tigerblock/storage/http"
+	_ "github.com/firetiger-oss/tigerblock/storage/memory"
+	_ "github.com/firetiger-oss/tigerblock/storage/r2"
+	_ "github.com/firetiger-oss/tigerblock/storage/s3"
 	"golang.org/x/term"
 )
 
-const usage = `Usage: stripes [flags] [file...]
+const usage = `Usage: stripes [flags] [file|uri...]
 
 Pretty-print structured data (JSON, YAML, XML, HTML, CSV, Dockerfile, markdown,
 protobuf, parquet, text, source code, txtar, wasm) with ANSI colors and optional paging.
+
+File arguments may be local paths or URIs. Supported schemes: file://,
+http(s)://, s3://, gs://, r2://, and :memory:. Authentication for http(s)
+URLs is controlled by --basic-auth and --bearer-token.
 
 When multiple files are given, each is preceded by a centered rule
 (───── filename ─────) so the source is visible inline. --format,
@@ -65,6 +82,9 @@ Flags:
   -p, --pager string          Pager command (e.g. "less -R", "bat --plain").
                               Use --paging=never to bypass paging.
   -n, --line-numbers          Show line numbers in a left-aligned gutter.
+      --basic-auth string     HTTP basic auth credentials in user:password
+                              format. Applies to http(s):// sources.
+      --bearer-token string   HTTP bearer token. Applies to http(s):// sources.
 
 Pager resolution: -p flag > $PAGER > "less -R"
 Profile resolution: --profile flag > $STRIPES_PROFILE > built-in default
@@ -81,6 +101,8 @@ type config struct {
 	width       int
 	pager       string
 	lineNumbers bool
+	basicAuth   string
+	bearerToken string
 }
 
 func main() {
@@ -93,7 +115,10 @@ func main() {
 		os.Exit(2)
 	}
 
-	if err := run(cfg, files); err != nil {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	if err := run(ctx, cfg, files); err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			os.Exit(exitErr.ExitCode())
@@ -123,9 +148,15 @@ func parseFlags(args []string) (*config, []string, error) {
 	fs.StringVar(&cfg.pager, "p", "", "pager command (shorthand)")
 	fs.BoolVar(&cfg.lineNumbers, "line-numbers", false, "show line numbers")
 	fs.BoolVar(&cfg.lineNumbers, "n", false, "show line numbers (shorthand)")
+	fs.StringVar(&cfg.basicAuth, "basic-auth", "", "HTTP basic auth credentials (user:password)")
+	fs.StringVar(&cfg.bearerToken, "bearer-token", "", "HTTP bearer token")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, nil, err
+	}
+
+	if cfg.basicAuth != "" && !strings.Contains(cfg.basicAuth, ":") {
+		return nil, nil, fmt.Errorf("invalid --basic-auth %q (want user:password)", cfg.basicAuth)
 	}
 
 	switch cfg.color {
@@ -149,10 +180,17 @@ func parseFlags(args []string) (*config, []string, error) {
 	return cfg, fs.Args(), nil
 }
 
-func run(cfg *config, files []string) error {
+func run(ctx context.Context, cfg *config, files []string) error {
 	styles, profile := resolveStyles(cfg)
 	rawSink, finish := openSink(cfg, len(files))
 	sink := &colorprofile.Writer{Forward: rawSink, Profile: profile}
+
+	if cfg.basicAuth != "" {
+		user, pass, _ := strings.Cut(cfg.basicAuth, ":")
+		http.DefaultTransport = basicauth.NewTransport(http.DefaultTransport, user, pass)
+	} else if cfg.bearerToken != "" {
+		http.DefaultTransport = bearerauth.NewTransport(http.DefaultTransport, cfg.bearerToken)
+	}
 
 	if len(files) == 0 {
 		renderOne(sink, "", os.Stdin, cfg, styles)
@@ -160,7 +198,7 @@ func run(cfg *config, files []string) error {
 	}
 
 	for i, file := range files {
-		f, err := os.Open(file)
+		rc, _, err := storage.GetObject(ctx, resolveSourceURI(file))
 		if err != nil {
 			_ = finish()
 			return err
@@ -171,10 +209,52 @@ func run(cfg *config, files []string) error {
 			}
 			writeSeparator(sink, file, styles)
 		}
-		renderOne(sink, file, f, cfg, styles)
-		_ = f.Close()
+		renderOne(sink, displayName(file), rc, cfg, styles)
+		_ = rc.Close()
 	}
 	return finish()
+}
+
+// resolveSourceURI normalizes a CLI file argument for storage.GetObject.
+//
+// tigerblock's GetObject runs uri.Split on its argument before consulting
+// the bucket registry, and bare names like "foo.json" (no scheme, no leading
+// '/', './', '../', '~') split to an empty scheme and would fail to resolve
+// a bucket. We rewrite those to an absolute file:// URI here so that
+// `stripes foo.json` keeps working the way it did under os.Open. Anything
+// already containing ':' (every scheme://… URI plus :memory:) or already
+// recognized as a local file path by uri.Split passes through unchanged.
+func resolveSourceURI(arg string) string {
+	if arg == "" || strings.Contains(arg, ":") {
+		return arg
+	}
+	switch {
+	case strings.HasPrefix(arg, "/"),
+		strings.HasPrefix(arg, "./"),
+		strings.HasPrefix(arg, "../"),
+		strings.HasPrefix(arg, "~"):
+		return arg
+	}
+	abs, err := filepath.Abs(arg)
+	if err != nil {
+		return arg
+	}
+	return "file://" + filepath.ToSlash(abs)
+}
+
+// displayName is the name handed to stripes.Detect for content-type sniffing.
+// For URIs we strip the scheme/location so the basename and extension drive
+// detection (s3://bucket/data.csv → data.csv via filepath.Base). Query strings
+// on http(s) URLs are trimmed so .json?token=… still matches .json.
+func displayName(arg string) string {
+	if i := strings.Index(arg, "://"); i >= 0 {
+		_, after, _ := strings.Cut(arg[i+3:], "/")
+		if q := strings.IndexByte(after, '?'); q >= 0 {
+			after = after[:q]
+		}
+		return after
+	}
+	return arg
 }
 
 // renderOne renders a single input into sink. name is the source filename

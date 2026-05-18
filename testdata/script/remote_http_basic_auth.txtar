@@ -1,0 +1,9 @@
+# --basic-auth installs a basic-auth http.RoundTripper that signs all
+# outbound requests, letting stripes fetch protected URLs.
+exec stripes --color=never -p cat --basic-auth $STRIPES_TEST_BASIC_USER $STRIPES_TEST_HTTP_BASIC
+stdout '"ok"'
+stdout 'true'
+
+# Without auth, the test server returns 401 and stripes exits non-zero.
+! exec stripes --color=never -p cat $STRIPES_TEST_HTTP_BASIC
+stderr '401'
