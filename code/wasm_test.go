@@ -26,7 +26,28 @@ var minimalWasm = []byte{
 	0x0a, 0x04, 0x01, 0x02, 0x00, 0x0b,
 }
 
-func TestWasmRendererNoWABT(t *testing.T) {
+func hasAnyWasmBackend() bool {
+	if _, err := exec.LookPath("wasm-tools"); err == nil {
+		return true
+	}
+	if _, err := exec.LookPath("wasm2wat"); err == nil {
+		return true
+	}
+	return false
+}
+
+func selectedWasmBackend(t *testing.T) string {
+	t.Helper()
+	if _, err := exec.LookPath("wasm-tools"); err == nil {
+		return "wasm-tools"
+	}
+	if _, err := exec.LookPath("wasm2wat"); err == nil {
+		return "wasm2wat"
+	}
+	return ""
+}
+
+func TestWasmRendererNoBackend(t *testing.T) {
 	t.Setenv("PATH", "")
 
 	plain := &stripes.Styles{Indent: "  "}
@@ -34,14 +55,14 @@ func TestWasmRendererNoWABT(t *testing.T) {
 	RenderWasm(&buf, bytes.NewReader(minimalWasm), plain)
 
 	got := buf.String()
-	if !strings.Contains(got, "wasm2wat not found") {
-		t.Fatalf("expected diagnostic about missing wasm2wat, got: %q", got)
+	if !strings.Contains(got, "wasm-tools") || !strings.Contains(got, "wasm2wat") {
+		t.Fatalf("expected diagnostic mentioning both wasm-tools and wasm2wat, got: %q", got)
 	}
 }
 
 func TestWasmRenderer(t *testing.T) {
-	if _, err := exec.LookPath("wasm2wat"); err != nil {
-		t.Skip("wasm2wat not installed; skipping")
+	if !hasAnyWasmBackend() {
+		t.Skip("neither wasm-tools nor wasm2wat installed; skipping")
 	}
 
 	plain := &stripes.Styles{Indent: "  "}
@@ -61,8 +82,9 @@ func TestWasmRenderer(t *testing.T) {
 }
 
 func TestWasmRendererInvalidBinary(t *testing.T) {
-	if _, err := exec.LookPath("wasm2wat"); err != nil {
-		t.Skip("wasm2wat not installed; skipping")
+	backend := selectedWasmBackend(t)
+	if backend == "" {
+		t.Skip("neither wasm-tools nor wasm2wat installed; skipping")
 	}
 
 	plain := &stripes.Styles{Indent: "  "}
@@ -70,7 +92,8 @@ func TestWasmRendererInvalidBinary(t *testing.T) {
 	RenderWasm(&buf, bytes.NewReader([]byte("not a wasm binary")), plain)
 
 	got := buf.String()
-	if !strings.HasPrefix(got, "ERROR: wasm2wat:") {
-		t.Fatalf("expected wasm2wat error diagnostic, got: %q", got)
+	want := "ERROR: " + backend + ":"
+	if !strings.HasPrefix(got, want) {
+		t.Fatalf("expected %s error diagnostic, got: %q", backend, got)
 	}
 }
