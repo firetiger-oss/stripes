@@ -10,7 +10,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/clipperhouse/displaywidth v0.11.0
 	github.com/creack/pty v1.1.24
-	github.com/firetiger-oss/tigerblock v0.27.1
+	github.com/firetiger-oss/tigerblock v0.27.2
 	github.com/moby/buildkit v0.29.0
 	github.com/muesli/reflow v0.3.0
 	github.com/parquet-go/parquet-go v0.29.0

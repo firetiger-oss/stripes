@@ -26,7 +26,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/colorprofile"
@@ -198,7 +197,7 @@ func run(ctx context.Context, cfg *config, files []string) error {
 	}
 
 	for i, file := range files {
-		rc, _, err := storage.GetObject(ctx, resolveSourceURI(file))
+		rc, _, err := storage.GetObject(ctx, file)
 		if err != nil {
 			_ = finish()
 			return err
@@ -213,33 +212,6 @@ func run(ctx context.Context, cfg *config, files []string) error {
 		_ = rc.Close()
 	}
 	return finish()
-}
-
-// resolveSourceURI normalizes a CLI file argument for storage.GetObject.
-//
-// tigerblock's GetObject runs uri.Split on its argument before consulting
-// the bucket registry, and bare names like "foo.json" (no scheme, no leading
-// '/', './', '../', '~') split to an empty scheme and would fail to resolve
-// a bucket. We rewrite those to an absolute file:// URI here so that
-// `stripes foo.json` keeps working the way it did under os.Open. Anything
-// already containing ':' (every scheme://… URI plus :memory:) or already
-// recognized as a local file path by uri.Split passes through unchanged.
-func resolveSourceURI(arg string) string {
-	if arg == "" || strings.Contains(arg, ":") {
-		return arg
-	}
-	switch {
-	case strings.HasPrefix(arg, "/"),
-		strings.HasPrefix(arg, "./"),
-		strings.HasPrefix(arg, "../"),
-		strings.HasPrefix(arg, "~"):
-		return arg
-	}
-	abs, err := filepath.Abs(arg)
-	if err != nil {
-		return arg
-	}
-	return "file://" + filepath.ToSlash(abs)
 }
 
 // displayName is the name handed to stripes.Detect for content-type sniffing.
