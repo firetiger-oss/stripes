@@ -130,7 +130,7 @@ func main() {
 	f.StringVar(&cfg.profile, "profile", "", "color profile `name` or YAML file")
 	f.IntVarP(&cfg.width, "width", "w", 0, "output width in `cols` (0 = auto-detect)")
 	f.StringVarP(&cfg.pager, "pager", "p", "", "pager `command`")
-	f.BoolVarP(&cfg.lineNumbers, "line-numbers", "n", false, "show line numbers in a left-aligned gutter")
+	f.BoolVarP(&cfg.lineNumbers, "line-numbers", "n", false, "show line numbers")
 	f.StringVar(&cfg.basicAuth, "basic-auth", "",
 		"HTTP basic auth `credentials` in user:password format; applies to http(s):// sources")
 	f.StringVar(&cfg.bearerToken, "bearer-token", "", "HTTP bearer `token`; applies to http(s):// sources")
