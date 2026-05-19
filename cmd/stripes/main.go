@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/colorprofile"
@@ -73,12 +74,18 @@ func longDescription() string {
 	b.WriteString(longDescriptionLead)
 	b.WriteString("\n\nSupported formats:")
 	for _, g := range formatGroups {
+		items := slices.Clone(g.items)
+		slices.Sort(items)
 		fmt.Fprintf(&b, "\n  %s: %s%s",
 			g.label,
 			strings.Repeat(" ", maxLabel-len(g.label)),
-			strings.Join(g.items, ", "),
+			strings.Join(items, ", "),
 		)
 	}
+	b.WriteString("\n\nPaging:")
+	b.WriteString("\n  Pager command: --pager flag > $PAGER env > \"less -R\".")
+	b.WriteString("\n  Mode \"auto\" spawns the pager only when output exceeds the terminal")
+	b.WriteString("\n  size or when multiple files are rendered; \"never\" bypasses paging.")
 	return b.String()
 }
 
@@ -122,8 +129,7 @@ func main() {
 	f.StringVar(&cfg.paging, "paging", "auto", "paging `mode` (always|never|auto)")
 	f.StringVar(&cfg.profile, "profile", "", "color profile `name` or YAML file")
 	f.IntVarP(&cfg.width, "width", "w", 0, "output width in `cols` (0 = auto-detect)")
-	f.StringVarP(&cfg.pager, "pager", "p", "",
-		"pager `command` (e.g. \"less -R\", \"bat --plain\"); use --paging=never to bypass paging")
+	f.StringVarP(&cfg.pager, "pager", "p", "", "pager `command`")
 	f.BoolVarP(&cfg.lineNumbers, "line-numbers", "n", false, "show line numbers in a left-aligned gutter")
 	f.StringVar(&cfg.basicAuth, "basic-auth", "",
 		"HTTP basic auth `credentials` in user:password format; applies to http(s):// sources")
