@@ -1,0 +1,71 @@
+version: 2
+project_name: stripes
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: stripes
+    main: ./cmd/stripes
+    binary: stripes
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: stripes
+    ids:
+      - stripes
+    name_template: "stripes_{{.Version}}_{{.Os}}_{{.Arch}}"
+    formats:
+      - tar.gz
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+brews:
+  - name: stripes
+    ids:
+      - stripes
+    repository:
+      owner: firetiger-oss
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/firetiger-oss/stripes
+    description: "Streaming pretty-printer for structured data formats — JSON, YAML, XML, CSV, parquet, source code, and more."
+    license: Apache-2.0
+    commit_author:
+      name: firetiger-bot
+      email: bot@firetiger.com
+    commit_msg_template: "stripes: bump to {{ .Tag }}"
+    test: |
+      assert_match version.to_s, shell_output("#{bin}/stripes --version")
