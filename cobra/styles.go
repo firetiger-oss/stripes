@@ -38,7 +38,7 @@ var DefaultStyles = &Styles{
 	Program:     stripes.DefaultStyles.Name,
 	Command:     stripes.DefaultStyles.Anchor,
 	Flag:        stripes.DefaultStyles.String,
-	Argument:    stripes.DefaultStyles.Text.Faint(true),
+	Argument:    lipgloss.NewStyle().Foreground(lipgloss.Color("250")),
 	Description: lipgloss.NewStyle(),
 	Default:     stripes.DefaultStyles.Comment,
 	Example:     stripes.DefaultStyles.Code,
