@@ -19,7 +19,6 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -32,6 +31,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/firetiger-oss/stripes"
 	_ "github.com/firetiger-oss/stripes/all"
+	stripescobra "github.com/firetiger-oss/stripes/cobra"
 	basicauth "github.com/firetiger-oss/tigerblock/secret/authn/basic"
 	bearerauth "github.com/firetiger-oss/tigerblock/secret/authn/bearer"
 	"github.com/firetiger-oss/tigerblock/storage"
@@ -41,12 +41,11 @@ import (
 	_ "github.com/firetiger-oss/tigerblock/storage/memory"
 	_ "github.com/firetiger-oss/tigerblock/storage/r2"
 	_ "github.com/firetiger-oss/tigerblock/storage/s3"
+	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
 
-const usage = `Usage: stripes [flags] [file|uri...]
-
-Pretty-print structured data (JSON, YAML, XML, HTML, CSV, Dockerfile, markdown,
+const longDescription = `Pretty-print structured data (JSON, YAML, XML, HTML, CSV, Dockerfile, markdown,
 protobuf, parquet, text, source code, txtar, wasm) with ANSI colors and optional paging.
 
 File arguments may be local paths or URIs. Supported schemes: file://,
@@ -57,38 +56,15 @@ When multiple files are given, each is preceded by a centered rule
 (───── filename ─────) so the source is visible inline. --format,
 --content-type, and --schema apply to all of them.
 
-Flags:
-  -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|gomod|gosum|gowork|modulestxt|text|code|protobuf|parquet|txtar|diff|wasm|table|auto (default auto)
-                              "table" routes CSV/TSV/JSONL/parquet through the
-                              new typed-table renderer with width-fitting,
-                              JSON-cell colorization, and (for parquet) schema-
-                              driven column formatting.
-      --content-type string   Override MIME type (e.g. application/vnd.foo+json)
-      --schema string         Schema URL (protobuf full name)
-      --color string          always|never|auto (default auto)
-      --paging string         always|never|auto (default auto). In "auto",
-                              the pager is spawned only when the rendered
-                              output is wider or taller than the terminal,
-                              or when more than one file is rendered.
-      --profile string        Color profile name or path. Bare names resolve
-                              against $XDG_CONFIG_HOME/stripes/profiles
-                              (~/.config/stripes/profiles) and the built-in
-                              set. A value containing "/" or ending in
-                              .yaml/.yml is loaded as a file directly.
-  -w, --width int             Output width in columns. 0 (default) =
-                              auto-detect from the terminal; falls back
-                              to no wrap when stdout is not a TTY.
-  -p, --pager string          Pager command (e.g. "less -R", "bat --plain").
-                              Use --paging=never to bypass paging.
-  -n, --line-numbers          Show line numbers in a left-aligned gutter.
-      --basic-auth string     HTTP basic auth credentials in user:password
-                              format. Applies to http(s):// sources.
-      --bearer-token string   HTTP bearer token. Applies to http(s):// sources.
-
 Pager resolution: -p flag > $PAGER > "less -R"
 Profile resolution: --profile flag > $STRIPES_PROFILE > built-in default
-Color is auto-disabled when NO_COLOR is set or stdout is not a terminal.
-`
+Color is auto-disabled when NO_COLOR is set or stdout is not a terminal.`
+
+var validFormats = []string{
+	"auto", "json", "yaml", "xml", "html", "csv", "dockerfile", "markdown",
+	"gomod", "gosum", "gowork", "modulestxt", "text", "code", "protobuf",
+	"wasm", "parquet", "txtar", "diff", "table",
+}
 
 type config struct {
 	format      string
@@ -105,78 +81,75 @@ type config struct {
 }
 
 func main() {
-	cfg, files, err := parseFlags(os.Args[1:])
-	if err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			os.Exit(0)
-		}
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(2)
-	}
-
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	if err := run(ctx, cfg, files); err != nil {
+	cfg := &config{}
+	root := &cobra.Command{
+		Use:   "stripes [flags] [file|uri...]",
+		Short: "Pretty-print structured data with ANSI colors",
+		Long:  longDescription,
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateConfig(cfg); err != nil {
+				return err
+			}
+			return run(cmd.Context(), cfg, args)
+		},
+	}
+
+	f := root.Flags()
+	f.StringVarP(&cfg.format, "format", "f", "auto",
+		"input `format` ("+strings.Join(validFormats, "|")+"); "+
+			`"table" routes CSV/TSV/JSONL/parquet through the typed-table renderer`)
+	f.StringVar(&cfg.contentType, "content-type", "", "override MIME `type` (e.g. application/vnd.foo+json)")
+	f.StringVar(&cfg.schema, "schema", "", "schema `url` (protobuf full name)")
+	f.StringVar(&cfg.color, "color", "auto", "color `mode` (always|never|auto)")
+	f.StringVar(&cfg.paging, "paging", "auto",
+		"paging `mode` (always|never|auto); in auto, the pager is spawned only when "+
+			"the rendered output is wider or taller than the terminal, or when more than one file is rendered")
+	f.StringVar(&cfg.profile, "profile", "",
+		"color profile `name` or path; bare names resolve against $XDG_CONFIG_HOME/stripes/profiles "+
+			"(~/.config/stripes/profiles) and the built-in set; a value containing \"/\" or ending in .yaml/.yml is loaded as a file directly")
+	f.IntVarP(&cfg.width, "width", "w", 0,
+		"output width in `cols`; 0 = auto-detect from the terminal, falls back to no wrap when stdout is not a TTY")
+	f.StringVarP(&cfg.pager, "pager", "p", "",
+		"pager `command` (e.g. \"less -R\", \"bat --plain\"); use --paging=never to bypass paging")
+	f.BoolVarP(&cfg.lineNumbers, "line-numbers", "n", false, "show line numbers in a left-aligned gutter")
+	f.StringVar(&cfg.basicAuth, "basic-auth", "",
+		"HTTP basic auth `credentials` in user:password format; applies to http(s):// sources")
+	f.StringVar(&cfg.bearerToken, "bearer-token", "", "HTTP bearer `token`; applies to http(s):// sources")
+
+	err := stripescobra.Execute(ctx, root)
+	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			os.Exit(exitErr.ExitCode())
 		}
-		fmt.Fprintln(os.Stderr, "stripes:", err)
 		os.Exit(1)
 	}
 }
 
-func parseFlags(args []string) (*config, []string, error) {
-	cfg := &config{format: "auto", color: "auto", paging: "auto"}
-
-	fs := flag.NewFlagSet("stripes", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	fs.Usage = func() { fmt.Fprint(os.Stderr, usage) }
-
-	fs.StringVar(&cfg.format, "format", "auto", "input format")
-	fs.StringVar(&cfg.format, "f", "auto", "input format (shorthand)")
-	fs.StringVar(&cfg.contentType, "content-type", "", "override MIME type")
-	fs.StringVar(&cfg.schema, "schema", "", "schema URL (protobuf)")
-	fs.StringVar(&cfg.color, "color", "auto", "color mode")
-	fs.StringVar(&cfg.paging, "paging", "auto", "paging mode")
-	fs.StringVar(&cfg.profile, "profile", "", "color profile name")
-	fs.IntVar(&cfg.width, "width", 0, "output width")
-	fs.IntVar(&cfg.width, "w", 0, "output width (shorthand)")
-	fs.StringVar(&cfg.pager, "pager", "", "pager command")
-	fs.StringVar(&cfg.pager, "p", "", "pager command (shorthand)")
-	fs.BoolVar(&cfg.lineNumbers, "line-numbers", false, "show line numbers")
-	fs.BoolVar(&cfg.lineNumbers, "n", false, "show line numbers (shorthand)")
-	fs.StringVar(&cfg.basicAuth, "basic-auth", "", "HTTP basic auth credentials (user:password)")
-	fs.StringVar(&cfg.bearerToken, "bearer-token", "", "HTTP bearer token")
-
-	if err := fs.Parse(args); err != nil {
-		return nil, nil, err
-	}
-
+func validateConfig(cfg *config) error {
 	if cfg.basicAuth != "" && !strings.Contains(cfg.basicAuth, ":") {
-		return nil, nil, fmt.Errorf("invalid --basic-auth %q (want user:password)", cfg.basicAuth)
+		return fmt.Errorf("invalid --basic-auth %q (want user:password)", cfg.basicAuth)
 	}
-
 	switch cfg.color {
 	case "auto", "always", "never":
 	default:
-		return nil, nil, fmt.Errorf("invalid --color %q (want auto|always|never)", cfg.color)
+		return fmt.Errorf("invalid --color %q (want auto|never|always)", cfg.color)
 	}
-
 	switch cfg.paging {
 	case "auto", "always", "never":
 	default:
-		return nil, nil, fmt.Errorf("invalid --paging %q (want auto|always|never)", cfg.paging)
+		return fmt.Errorf("invalid --paging %q (want auto|never|always)", cfg.paging)
 	}
-
-	switch cfg.format {
-	case "auto", "json", "yaml", "xml", "html", "csv", "dockerfile", "markdown", "gomod", "gosum", "gowork", "modulestxt", "text", "code", "protobuf", "wasm", "parquet", "txtar", "diff", "table":
-	default:
-		return nil, nil, fmt.Errorf("invalid --format %q", cfg.format)
+	for _, v := range validFormats {
+		if cfg.format == v {
+			return nil
+		}
 	}
-
-	return cfg, fs.Args(), nil
+	return fmt.Errorf("invalid --format %q", cfg.format)
 }
 
 func run(ctx context.Context, cfg *config, files []string) error {
