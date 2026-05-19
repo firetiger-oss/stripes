@@ -45,7 +45,10 @@ import (
 	"golang.org/x/term"
 )
 
-const longDescription = `Pretty-print structured data with ANSI colors and optional paging.`
+const longDescriptionTemplate = `Pretty-print structured data with ANSI colors and optional paging.
+
+Supported formats: %s.
+"table" routes CSV/TSV/JSONL/parquet through the typed-table renderer.`
 
 var validFormats = []string{
 	"auto", "json", "yaml", "xml", "html", "csv", "dockerfile", "markdown",
@@ -75,7 +78,7 @@ func main() {
 	root := &cobra.Command{
 		Use:   "stripes [flags] [file|uri...]",
 		Short: "Pretty-print structured data with ANSI colors",
-		Long:  longDescription,
+		Long:  fmt.Sprintf(longDescriptionTemplate, strings.Join(validFormats, ", ")),
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateConfig(cfg); err != nil {
@@ -86,16 +89,13 @@ func main() {
 	}
 
 	f := root.Flags()
-	f.StringVarP(&cfg.format, "format", "f", "auto",
-		"input `format` ("+strings.Join(validFormats, "|")+"); "+
-			`"table" routes CSV/TSV/JSONL/parquet through the typed-table renderer`)
+	f.StringVarP(&cfg.format, "format", "f", "auto", "input `format`")
 	f.StringVar(&cfg.contentType, "content-type", "", "override MIME `type` (e.g. application/vnd.foo+json)")
 	f.StringVar(&cfg.schema, "schema", "", "schema `url` (protobuf full name)")
 	f.StringVar(&cfg.color, "color", "auto", "color `mode` (always|never|auto)")
 	f.StringVar(&cfg.paging, "paging", "auto", "paging `mode` (always|never|auto)")
 	f.StringVar(&cfg.profile, "profile", "", "color profile `name` or YAML file")
-	f.IntVarP(&cfg.width, "width", "w", 0,
-		"output width in `cols`; 0 = auto-detect from the terminal, falls back to no wrap when stdout is not a TTY")
+	f.IntVarP(&cfg.width, "width", "w", 0, "output width in `cols` (0 = auto-detect)")
 	f.StringVarP(&cfg.pager, "pager", "p", "",
 		"pager `command` (e.g. \"less -R\", \"bat --plain\"); use --paging=never to bypass paging")
 	f.BoolVarP(&cfg.lineNumbers, "line-numbers", "n", false, "show line numbers in a left-aligned gutter")
