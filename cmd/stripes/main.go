@@ -86,6 +86,11 @@ func longDescription() string {
 	b.WriteString("\n  Pager command: --pager flag > $PAGER env > \"less -R\".")
 	b.WriteString("\n  Mode \"auto\" spawns the pager only when output exceeds the terminal")
 	b.WriteString("\n  size or when multiple files are rendered; \"never\" bypasses paging.")
+	b.WriteString("\n\nAuthentication:")
+	b.WriteString("\n  For http(s):// sources that require auth, set one of:")
+	b.WriteString("\n    --basic-auth user:password")
+	b.WriteString("\n    --bearer-token TOKEN")
+	b.WriteString("\n  If both are set, --basic-auth takes precedence.")
 	return b.String()
 }
 
@@ -131,9 +136,8 @@ func main() {
 	f.IntVarP(&cfg.width, "width", "w", 0, "output width in `cols` (0 = auto-detect)")
 	f.StringVarP(&cfg.pager, "pager", "p", "", "pager `command`")
 	f.BoolVarP(&cfg.lineNumbers, "line-numbers", "n", false, "show line numbers")
-	f.StringVar(&cfg.basicAuth, "basic-auth", "",
-		"HTTP basic auth `credentials` in user:password format; applies to http(s):// sources")
-	f.StringVar(&cfg.bearerToken, "bearer-token", "", "HTTP bearer `token`; applies to http(s):// sources")
+	f.StringVar(&cfg.basicAuth, "basic-auth", "", "HTTP Basic auth (see Authentication)")
+	f.StringVar(&cfg.bearerToken, "bearer-token", "", "HTTP Bearer auth (see Authentication)")
 
 	err := stripescobra.Execute(ctx, root)
 	if err != nil {
