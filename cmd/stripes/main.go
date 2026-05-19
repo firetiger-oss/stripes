@@ -25,7 +25,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"slices"
 	"strings"
 
 	"github.com/charmbracelet/colorprofile"
@@ -55,9 +54,9 @@ var formatGroups = []struct {
 	label string
 	items []string
 }{
-	{"Structured data", []string{"json", "yaml", "xml", "csv", "parquet"}},
+	{"Structured data", []string{"csv", "json", "parquet", "xml", "yaml"}},
 	{"Markup", []string{"html", "markdown"}},
-	{"Source code", []string{"text", "code", "diff", "txtar"}},
+	{"Source code", []string{"code", "diff", "text", "txtar"}},
 	{"Build files", []string{"dockerfile", "gomod", "gosum", "gowork", "modulestxt"}},
 	{"Binary", []string{"protobuf", "wasm"}},
 	{"Special", []string{"auto", "table"}},
@@ -74,12 +73,10 @@ func longDescription() string {
 	b.WriteString(longDescriptionLead)
 	b.WriteString("\n\nSupported formats:")
 	for _, g := range formatGroups {
-		items := slices.Clone(g.items)
-		slices.Sort(items)
 		fmt.Fprintf(&b, "\n  %s: %s%s",
 			g.label,
 			strings.Repeat(" ", maxLabel-len(g.label)),
-			strings.Join(items, ", "),
+			strings.Join(g.items, ", "),
 		)
 	}
 	b.WriteString("\n\nPaging:")
