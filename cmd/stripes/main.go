@@ -140,29 +140,30 @@ func validateConfig(cfg *config) error {
 		return fmt.Errorf("invalid --paging %q (want auto|never|always)", cfg.paging)
 	}
 	switch cfg.format {
-	case "auto",
-		"code",
-		"csv",
-		"diff",
-		"dockerfile",
-		"gomod",
-		"gosum",
-		"gowork",
-		"html",
-		"json",
-		"markdown",
-		"modulestxt",
-		"parquet",
-		"protobuf",
-		"table",
-		"text",
-		"txtar",
-		"wasm",
-		"xml",
-		"yaml":
-		return nil
+	case "auto":
+	case "code":
+	case "csv":
+	case "diff":
+	case "dockerfile":
+	case "gomod":
+	case "gosum":
+	case "gowork":
+	case "html":
+	case "json":
+	case "markdown":
+	case "modulestxt":
+	case "parquet":
+	case "protobuf":
+	case "table":
+	case "text":
+	case "txtar":
+	case "wasm":
+	case "xml":
+	case "yaml":
+	default:
+		return fmt.Errorf("invalid --format %q", cfg.format)
 	}
-	return fmt.Errorf("invalid --format %q", cfg.format)
+	return nil
 }
 
 func run(ctx context.Context, cfg *config, files []string) error {
