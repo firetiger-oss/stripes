@@ -45,15 +45,41 @@ import (
 	"golang.org/x/term"
 )
 
-const longDescriptionTemplate = `Pretty-print structured data with ANSI colors and optional paging.
+const longDescriptionLead = "Pretty-print structured data with ANSI colors and optional paging."
 
-Supported formats: %s.
-"table" routes CSV/TSV/JSONL/parquet through the typed-table renderer.`
+// formatGroups is the source of truth for which --format values exist and
+// how they're documented. The Long description groups them by category;
+// validateConfig walks the groups to accept any listed value.
+var formatGroups = []struct {
+	label string
+	items []string
+}{
+	{"Structured data", []string{"json", "yaml", "xml", "csv", "parquet"}},
+	{"Markup", []string{"html", "markdown"}},
+	{"Source code", []string{"text", "code", "diff", "txtar"}},
+	{"Build files", []string{"dockerfile", "gomod", "gosum", "gowork", "modulestxt"}},
+	{"Binary", []string{"protobuf", "wasm"}},
+	{"Special", []string{"auto", "table"}},
+}
 
-var validFormats = []string{
-	"auto", "json", "yaml", "xml", "html", "csv", "dockerfile", "markdown",
-	"gomod", "gosum", "gowork", "modulestxt", "text", "code", "protobuf",
-	"wasm", "parquet", "txtar", "diff", "table",
+func longDescription() string {
+	maxLabel := 0
+	for _, g := range formatGroups {
+		if n := len(g.label); n > maxLabel {
+			maxLabel = n
+		}
+	}
+	var b strings.Builder
+	b.WriteString(longDescriptionLead)
+	b.WriteString("\n\nSupported formats:")
+	for _, g := range formatGroups {
+		fmt.Fprintf(&b, "\n  %s: %s%s",
+			g.label,
+			strings.Repeat(" ", maxLabel-len(g.label)),
+			strings.Join(g.items, ", "),
+		)
+	}
+	return b.String()
 }
 
 type config struct {
@@ -78,7 +104,7 @@ func main() {
 	root := &cobra.Command{
 		Use:   "stripes [flags] [file|uri...]",
 		Short: "Pretty-print structured data with ANSI colors",
-		Long:  fmt.Sprintf(longDescriptionTemplate, strings.Join(validFormats, ", ")),
+		Long:  longDescription(),
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateConfig(cfg); err != nil {
@@ -127,9 +153,11 @@ func validateConfig(cfg *config) error {
 	default:
 		return fmt.Errorf("invalid --paging %q (want auto|never|always)", cfg.paging)
 	}
-	for _, v := range validFormats {
-		if cfg.format == v {
-			return nil
+	for _, g := range formatGroups {
+		for _, v := range g.items {
+			if cfg.format == v {
+				return nil
+			}
 		}
 	}
 	return fmt.Errorf("invalid --format %q", cfg.format)
