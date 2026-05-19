@@ -32,3 +32,6 @@ go.work.sum
 # .vscode/
 *~
 /stripes
+
+# GoReleaser output
+/dist/

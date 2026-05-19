@@ -45,6 +45,8 @@ import (
 	"golang.org/x/term"
 )
 
+var version = "dev"
+
 const longDescription = `Pretty-print structured data with ANSI colors and optional paging.
 
 FORMATS
@@ -90,10 +92,11 @@ func main() {
 
 	cfg := &config{}
 	root := &cobra.Command{
-		Use:   "stripes [flags] [file|uri...]",
-		Short: "Pretty-print structured data with ANSI colors",
-		Long:  longDescription,
-		Args:  cobra.ArbitraryArgs,
+		Use:     "stripes [flags] [file|uri...]",
+		Short:   "Pretty-print structured data with ANSI colors",
+		Long:    longDescription,
+		Version: version,
+		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateConfig(cfg); err != nil {
 				return err
