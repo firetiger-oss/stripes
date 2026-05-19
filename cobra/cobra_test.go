@@ -43,7 +43,7 @@ func TestRenderHelp(t *testing.T) {
 				"  tool [flags]\n\n" +
 				"Flags:\n" +
 				"  -c, --config file   config file path (default \"/etc/cfg\")\n" +
-				"  -v, --verbose       verbose output\n",
+				"  -v, --verbose       verbose output\n\n",
 		},
 		{
 			name: "subcommands grouped and ungrouped",
@@ -68,7 +68,7 @@ func TestRenderHelp(t *testing.T) {
 				"  serve       Start the server\n\n" +
 				"Additional Commands:\n" +
 				"  version     Print version\n\n" +
-				`Use "tool [command] --help" for more information about a command.` + "\n",
+				`Use "tool [command] --help" for more information about a command.` + "\n\n",
 		},
 		{
 			name: "examples and aliases",
@@ -88,7 +88,7 @@ func TestRenderHelp(t *testing.T) {
 				"  tool, t, tl\n\n" +
 				"Examples:\n" +
 				"  tool run\n" +
-				"  tool serve --port 8080\n",
+				"  tool serve --port 8080\n\n",
 		},
 	}
 
@@ -106,9 +106,9 @@ func TestRenderHelp(t *testing.T) {
 }
 
 // TestRenderHelpMatchesCobraDefault locks in byte-for-byte parity with
-// cobra's own help output. For each fixture, render twice — once through
-// stripes (then ANSI-stripped) and once through cobra's defaultHelpFunc
-// via cmd.Help() — and require the two outputs to match exactly.
+// cobra's own help output, with one deliberate exception: stripes adds
+// one extra trailing newline so help output isn't flush against the next
+// shell prompt. The comparison strips that single extra newline.
 func TestRenderHelpMatchesCobraDefault(t *testing.T) {
 	fixtures := []struct {
 		name string
@@ -194,7 +194,7 @@ func TestRenderHelpMatchesCobraDefault(t *testing.T) {
 			stripesCmd := tt.make()
 			var stripesBuf bytes.Buffer
 			renderHelp(stripesCmd, &stripesBuf, DefaultStyles)
-			gotStripes := ansi.Strip(stripesBuf.String())
+			gotStripes := strings.TrimRight(ansi.Strip(stripesBuf.String()), "\n")
 
 			cobraCmd := tt.make()
 			var cobraBuf bytes.Buffer
@@ -203,9 +203,10 @@ func TestRenderHelpMatchesCobraDefault(t *testing.T) {
 			if err := cobraCmd.Help(); err != nil {
 				t.Fatalf("cobra Help: %v", err)
 			}
+			gotCobra := strings.TrimRight(cobraBuf.String(), "\n")
 
-			if gotStripes != cobraBuf.String() {
-				t.Errorf("stripes output diverged from cobra default\nstripes:\n%q\ncobra:\n%q", gotStripes, cobraBuf.String())
+			if gotStripes != gotCobra {
+				t.Errorf("stripes output diverged from cobra default\nstripes:\n%q\ncobra:\n%q", gotStripes, gotCobra)
 			}
 		})
 	}
@@ -216,7 +217,7 @@ func TestRenderUsage(t *testing.T) {
 	var buf bytes.Buffer
 	renderUsage(cmd, &buf, DefaultStyles)
 	got := ansi.Strip(buf.String())
-	want := "Usage:\n  tool [flags]\n"
+	want := "Usage:\n  tool [flags]\n\n"
 	if got != want {
 		t.Errorf("renderUsage mismatch\nwant:\n%q\n got:\n%q", want, got)
 	}

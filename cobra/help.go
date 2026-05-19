@@ -88,7 +88,10 @@ func writeUsage(w io.Writer, cmd *cobra.Command, s *Styles) {
 		hint := fmt.Sprintf(`Use "%s [command] --help" for more information about a command.`, cmd.CommandPath())
 		fmt.Fprintf(w, "\n\n%s", s.Hint.Render(hint))
 	}
-	fmt.Fprintln(w)
+	// Two trailing newlines (vs. cobra's one) deliberately leave a blank
+	// line after the last section so help output isn't visually flush
+	// against the next shell prompt.
+	fmt.Fprint(w, "\n\n")
 }
 
 // styleUseLine restyles the result of cmd.UseLine: program name in Program
