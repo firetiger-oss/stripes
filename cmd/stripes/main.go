@@ -45,20 +45,7 @@ import (
 	"golang.org/x/term"
 )
 
-const longDescription = `Pretty-print structured data (JSON, YAML, XML, HTML, CSV, Dockerfile, markdown,
-protobuf, parquet, text, source code, txtar, wasm) with ANSI colors and optional paging.
-
-File arguments may be local paths or URIs. Supported schemes: file://,
-http(s)://, s3://, gs://, r2://, and :memory:. Authentication for http(s)
-URLs is controlled by --basic-auth and --bearer-token.
-
-When multiple files are given, each is preceded by a centered rule
-(───── filename ─────) so the source is visible inline. --format,
---content-type, and --schema apply to all of them.
-
-Pager resolution: -p flag > $PAGER > "less -R"
-Profile resolution: --profile flag > $STRIPES_PROFILE > built-in default
-Color is auto-disabled when NO_COLOR is set or stdout is not a terminal.`
+const longDescription = `Pretty-print structured data with ANSI colors and optional paging.`
 
 var validFormats = []string{
 	"auto", "json", "yaml", "xml", "html", "csv", "dockerfile", "markdown",
@@ -105,12 +92,8 @@ func main() {
 	f.StringVar(&cfg.contentType, "content-type", "", "override MIME `type` (e.g. application/vnd.foo+json)")
 	f.StringVar(&cfg.schema, "schema", "", "schema `url` (protobuf full name)")
 	f.StringVar(&cfg.color, "color", "auto", "color `mode` (always|never|auto)")
-	f.StringVar(&cfg.paging, "paging", "auto",
-		"paging `mode` (always|never|auto); in auto, the pager is spawned only when "+
-			"the rendered output is wider or taller than the terminal, or when more than one file is rendered")
-	f.StringVar(&cfg.profile, "profile", "",
-		"color profile `name` or path; bare names resolve against $XDG_CONFIG_HOME/stripes/profiles "+
-			"(~/.config/stripes/profiles) and the built-in set; a value containing \"/\" or ending in .yaml/.yml is loaded as a file directly")
+	f.StringVar(&cfg.paging, "paging", "auto", "paging `mode` (always|never|auto)")
+	f.StringVar(&cfg.profile, "profile", "", "color profile `name` or YAML file")
 	f.IntVarP(&cfg.width, "width", "w", 0,
 		"output width in `cols`; 0 = auto-detect from the terminal, falls back to no wrap when stdout is not a TTY")
 	f.StringVarP(&cfg.pager, "pager", "p", "",

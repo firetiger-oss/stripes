@@ -19,7 +19,11 @@ func renderHelp(cmd *cobra.Command, w io.Writer, s *Styles) {
 		desc = trimRightSpace(cmd.Short)
 	}
 	if desc != "" {
-		fmt.Fprintln(w, s.Description.Render(desc))
+		first, rest, more := strings.Cut(desc, "\n")
+		fmt.Fprintln(w, s.Description.Bold(true).Render(first))
+		if more {
+			fmt.Fprintln(w, s.Description.Render(rest))
+		}
 		fmt.Fprintln(w)
 	}
 	if cmd.Runnable() || cmd.HasSubCommands() {
