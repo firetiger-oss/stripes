@@ -197,19 +197,31 @@ func run(ctx context.Context, cfg *config, files []string) error {
 	}
 
 	for i, file := range files {
-		rc, _, err := storage.GetObject(ctx, file)
-		if err != nil {
+		if err := func() error {
+			rc, info, err := storage.GetObject(ctx, file)
+			if err != nil {
+				return err
+			}
+			defer rc.Close()
+
+			r, err := decompress(rc, info.ContentEncoding)
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+
+			if len(files) > 1 {
+				if i > 0 {
+					io.WriteString(sink, "\n")
+				}
+				writeSeparator(sink, file, styles)
+			}
+			renderOne(sink, displayName(file), r, cfg, styles)
+			return nil
+		}(); err != nil {
 			_ = finish()
 			return err
 		}
-		if len(files) > 1 {
-			if i > 0 {
-				io.WriteString(sink, "\n")
-			}
-			writeSeparator(sink, file, styles)
-		}
-		renderOne(sink, displayName(file), rc, cfg, styles)
-		_ = rc.Close()
 	}
 	return finish()
 }
