@@ -51,9 +51,19 @@ func init() {
 // type was application/protobuf+json), the returned renderer decodes
 // protojson; otherwise it decodes binary protobuf. Output is the same
 // protobuf text format in both cases.
+//
+// When schemaURL is empty, the renderer falls back to the "messageType"
+// MIME parameter (e.g. application/protobuf; messageType="foo.Bar") —
+// the convention gRPC and several HTTP-protobuf tools use to carry the
+// payload's message name alongside the content type. MIME parameter
+// names are case-insensitive; mime.ParseMediaType lowercases them, so
+// the key here is "messagetype".
 func rendererFor(params map[string]string, schemaURL string) stripes.Renderer {
 	types := protoregistry.GlobalTypes
 	protojsonEncoded := params[stripes.SuffixParam] == "json"
+	if schemaURL == "" {
+		schemaURL = params["messagetype"]
+	}
 	if schemaURL == "" {
 		return New(nil, types)
 	}

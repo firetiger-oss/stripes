@@ -269,6 +269,38 @@ func TestProtobufJSONInvalidPayload(t *testing.T) {
 	}
 }
 
+// TestProtobufMessageTypeParam verifies the renderer falls back to the
+// "messageType" MIME parameter when --schema is not supplied — the
+// convention application/protobuf; messageType="foo.Bar" uses.
+func TestProtobufMessageTypeParam(t *testing.T) {
+	msg := &commonv1.KeyValue{Key: "hi"}
+	binaryData, err := proto.Marshal(msg)
+	if err != nil {
+		t.Fatalf("proto.Marshal: %v", err)
+	}
+
+	// Empty schemaURL, but params carry messageType — should decode.
+	// mime.ParseMediaType lowercases param names so we look up
+	// "messagetype" with the canonical lowercase form.
+	r := rendererFor(map[string]string{"messagetype": string(msg.ProtoReflect().Descriptor().FullName())}, "")
+	if r == nil {
+		t.Fatalf("rendererFor returned nil")
+	}
+	var buf bytes.Buffer
+	r(&buf, bytes.NewReader(binaryData), stripes.DefaultStyles)
+	if !strings.Contains(ansi.Strip(buf.String()), "\"hi\"") {
+		t.Errorf("decoded output missing field value: %q", buf.String())
+	}
+
+	// schemaURL wins over messageType when both are set.
+	r = rendererFor(map[string]string{"messagetype": "does.not.exist"}, string(msg.ProtoReflect().Descriptor().FullName()))
+	var buf2 bytes.Buffer
+	r(&buf2, bytes.NewReader(binaryData), stripes.DefaultStyles)
+	if !strings.Contains(ansi.Strip(buf2.String()), "\"hi\"") {
+		t.Errorf("explicit schemaURL did not win over messageType: %q", buf2.String())
+	}
+}
+
 // TestProtobufFuncDispatch verifies the registry dispatch picks the
 // binary or protojson renderer based on the +suffix carried in params
 // (set by stripes.Func when collapsing application/protobuf+json).

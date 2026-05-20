@@ -82,6 +82,10 @@ PROTOBUF SCHEMAS
     *.proto                            compiled in-process (--include adds import roots)
     buf.build/<owner>/<module>[:ref]   fetched via the buf CLI
 
+  HTTP(S) sources serving content-type "application/(x-)protobuf;
+  messageType=foo.Bar" auto-resolve the schema from the MIME parameter,
+  no --schema needed when the type is already in scope.
+
 `
 
 type config struct {
@@ -233,7 +237,7 @@ func run(ctx context.Context, cfg *config, files []string) error {
 	}
 
 	if len(files) == 0 {
-		renderOne(sink, "", os.Stdin, cfg, styles)
+		renderOne(sink, "", "", os.Stdin, cfg, styles)
 		return finish()
 	}
 
@@ -257,7 +261,7 @@ func run(ctx context.Context, cfg *config, files []string) error {
 				}
 				writeSeparator(sink, file, styles)
 			}
-			renderOne(sink, displayName(file), r, cfg, styles)
+			renderOne(sink, displayName(file), info.ContentType, r, cfg, styles)
 			return nil
 		}(); err != nil {
 			_ = finish()
@@ -301,8 +305,11 @@ func displayName(arg string) string {
 }
 
 // renderOne renders a single input into sink. name is the source filename
-// (used for content-type detection); empty for stdin.
-func renderOne(sink io.Writer, name string, input io.Reader, cfg *config, styles *stripes.Styles) {
+// (used for content-type detection); empty for stdin. contentTypeHint
+// carries a server-supplied Content-Type (e.g. from tigerblock storage
+// metadata or an HTTP response header) and is consulted between the
+// user-supplied --format and the filename/sniff cascade.
+func renderOne(sink io.Writer, name, contentTypeHint string, input io.Reader, cfg *config, styles *stripes.Styles) {
 	br := bufio.NewReader(input)
 	peek, _ := br.Peek(512)
 
@@ -328,6 +335,9 @@ func renderOne(sink io.Writer, name string, input io.Reader, cfg *config, styles
 		if cfg.format == "protobuf" && strings.HasSuffix(strings.ToLower(name), ".json") {
 			contentType = "application/protobuf+json"
 		}
+	}
+	if contentType == "" {
+		contentType = contentTypeHint
 	}
 	if contentType == "" {
 		contentType = stripes.Detect(name, peek)

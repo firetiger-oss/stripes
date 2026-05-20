@@ -160,6 +160,29 @@ func TestFunc(t *testing.T) {
 	}
 }
 
+// TestFuncXPrefixAlias verifies that the legacy application/x-FOO form
+// resolves to a handler registered for application/FOO. The x- form is
+// what plenty of tools still emit for protobuf payloads (e.g.
+// application/x-protobuf), even though RFC 6648 deprecated the prefix.
+func TestFuncXPrefixAlias(t *testing.T) {
+	cases := []struct {
+		contentType string
+		wantNil     bool
+	}{
+		{"application/protobuf", false},
+		{"application/x-protobuf", false},                              // alias
+		{`application/x-protobuf; messageType="foo.Bar"`, false},       // alias + params
+		{"application/json", false},                                    // direct hit unaffected
+		{"application/x-still-not-registered", true},                   // alias still doesn't invent handlers
+	}
+	for _, tc := range cases {
+		r := stripes.Func(tc.contentType, "")
+		if (r == nil) != tc.wantNil {
+			t.Errorf("Func(%q) nil=%v, wantNil=%v", tc.contentType, r == nil, tc.wantNil)
+		}
+	}
+}
+
 func TestFuncSuffixParam(t *testing.T) {
 	var got map[string]string
 	stripes.Register(stripes.Format{

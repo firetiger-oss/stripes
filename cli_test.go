@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/rogpeppe/go-internal/testscript"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 var update = flag.Bool("update", false, "update golden files inside testscript archives")
@@ -44,6 +46,18 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
+	// Precomputed protobuf payload + the messageType the server advertises
+	// via Content-Type, exercised by detect_protobuf_messagetype.txtar.
+	// google.protobuf.StringValue is linked into the stripes binary via
+	// the wrapperspb runtime, so the CLI can resolve the schema from the
+	// MIME parameter alone — no --schema or --registry needed.
+	pbMsg := wrapperspb.String("stripes")
+	pbBody, err := proto.Marshal(pbMsg)
+	if err != nil {
+		panic(err)
+	}
+	pbType := `application/x-protobuf; messageType="` + string(pbMsg.ProtoReflect().Descriptor().FullName()) + `"`
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/basic/data.json":
@@ -57,6 +71,10 @@ func TestMain(m *testing.M) {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
+		case "/proto/keyvalue":
+			w.Header().Set("Content-Type", pbType)
+			_, _ = w.Write(pbBody)
+			return
 		default:
 			http.NotFound(w, r)
 			return
@@ -69,6 +87,7 @@ func TestMain(m *testing.M) {
 	os.Setenv("STRIPES_TEST_BIN", binDir)
 	os.Setenv("STRIPES_TEST_HTTP_BASIC", srv.URL+"/basic/data.json")
 	os.Setenv("STRIPES_TEST_HTTP_BEARER", srv.URL+"/bearer/data.json")
+	os.Setenv("STRIPES_TEST_HTTP_PROTOBUF", srv.URL+"/proto/keyvalue")
 	os.Setenv("STRIPES_TEST_BASIC_USER", testBasicUser+":"+testBasicPass)
 	os.Setenv("STRIPES_TEST_BEARER_TOKEN", testBearerTok)
 	os.Exit(m.Run())
@@ -92,6 +111,7 @@ func TestCLI(t *testing.T) {
 			env.Setenv("PAGER", "")
 			env.Setenv("STRIPES_TEST_HTTP_BASIC", os.Getenv("STRIPES_TEST_HTTP_BASIC"))
 			env.Setenv("STRIPES_TEST_HTTP_BEARER", os.Getenv("STRIPES_TEST_HTTP_BEARER"))
+			env.Setenv("STRIPES_TEST_HTTP_PROTOBUF", os.Getenv("STRIPES_TEST_HTTP_PROTOBUF"))
 			env.Setenv("STRIPES_TEST_BASIC_USER", os.Getenv("STRIPES_TEST_BASIC_USER"))
 			env.Setenv("STRIPES_TEST_BEARER_TOKEN", os.Getenv("STRIPES_TEST_BEARER_TOKEN"))
 			return nil

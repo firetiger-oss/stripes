@@ -193,6 +193,22 @@ func Func(contentType, schemaURL string) Renderer {
 		return f.RendererFor(params, schemaURL)
 	}
 
+	// "application/x-foo" is the legacy form of "application/foo"; RFC
+	// 6648 deprecated the x- prefix but plenty of tools still emit it
+	// (e.g. application/x-protobuf is the historical spelling of
+	// application/protobuf). Fall back to the canonical form only when
+	// the x- form itself isn't registered, so registrations that
+	// deliberately use the x- prefix still resolve directly.
+	if strings.HasPrefix(mediaType, "application/x-") {
+		canonical := "application/" + mediaType[len("application/x-"):]
+		registryMu.RLock()
+		f = registryByCT[canonical]
+		registryMu.RUnlock()
+		if f != nil {
+			return f.RendererFor(params, schemaURL)
+		}
+	}
+
 	if strings.HasPrefix(mediaType, "text/") {
 		return Text
 	}
