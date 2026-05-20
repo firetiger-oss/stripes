@@ -10,6 +10,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
@@ -22,6 +24,14 @@ func main() {
 	if len(os.Args) < 5 || os.Args[1] != "build" || os.Args[3] != "-o" || os.Args[4] != "-" {
 		fmt.Fprintf(os.Stderr, "stub-buf: unexpected argv: %v\n", os.Args)
 		os.Exit(2)
+	}
+	// STUB_BUF_DELAY_MS lets tests observe whether the caller actually
+	// runs multiple buf invocations in parallel: a serial caller pays
+	// 3 × delay, a concurrent one pays ~1 × delay.
+	if v := os.Getenv("STUB_BUF_DELAY_MS"); v != "" {
+		if ms, err := strconv.Atoi(v); err == nil && ms > 0 {
+			time.Sleep(time.Duration(ms) * time.Millisecond)
+		}
 	}
 	ref := os.Args[2]
 	if ref != knownRef {

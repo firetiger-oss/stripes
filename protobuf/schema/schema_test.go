@@ -6,8 +6,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/firetiger-oss/stripes/protobuf/schema"
 	_ "github.com/firetiger-oss/tigerblock/storage/file"
@@ -252,6 +254,47 @@ func buildStubBuf(t *testing.T) string {
 		t.Fatalf("go build stub-buf: %v", err)
 	}
 	return bin
+}
+
+// TestLoadRegistryConcurrentFetch confirms LoadRegistry actually
+// overlaps the per-path I/O via concurrent.Run rather than fetching
+// sequentially. Each stub-buf invocation sleeps STUB_BUF_DELAY_MS
+// before producing output, so serial loading of N refs costs N × delay
+// while concurrent loading costs ~1 × delay. Threshold sits in the
+// gap.
+func TestLoadRegistryConcurrentFetch(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("subprocess PATH override is not portable to windows in this test")
+	}
+	if testing.Short() {
+		t.Skip("spawns multiple subprocesses; skipped in -short")
+	}
+	stubBin := buildStubBuf(t)
+	t.Setenv("PATH", filepath.Dir(stubBin)+string(os.PathListSeparator)+os.Getenv("PATH"))
+	const delayMs = 500
+	t.Setenv("STUB_BUF_DELAY_MS", strconv.Itoa(delayMs))
+
+	start := time.Now()
+	files, err := schema.LoadRegistry(context.Background(), []string{
+		"buf.build/stub/hello",
+		"buf.build/stub/hello",
+		"buf.build/stub/hello",
+	}, nil)
+	if err != nil {
+		t.Fatalf("LoadRegistry: %v", err)
+	}
+	elapsed := time.Since(start)
+
+	if _, err := files.FindDescriptorByName("stub.v1.Hello"); err != nil {
+		t.Errorf("FindDescriptorByName: %v", err)
+	}
+
+	// Concurrent: ~delay + fork overhead ≈ 650ms with 500ms delay.
+	// Serial: ≥3 × delay = 1500ms. Threshold midway flags a regression
+	// without flaking on subprocess-startup jitter.
+	if max := 2 * time.Duration(delayMs) * time.Millisecond; elapsed > max {
+		t.Errorf("3 buf-module loads took %v, want < %v — looks serial", elapsed, max)
+	}
 }
 
 func TestNewTypeResolver(t *testing.T) {

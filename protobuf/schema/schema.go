@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/bufbuild/protocompile"
+	"github.com/firetiger-oss/concurrent"
 	"github.com/firetiger-oss/tigerblock/storage"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
@@ -61,23 +62,22 @@ import (
 func LoadRegistry(ctx context.Context, paths []string, includes []string) (*protoregistry.Files, error) {
 	files := new(protoregistry.Files)
 
+	// Fan out the I/O for descriptor-set reads and buf-build invocations
+	// across goroutines so storage.GetObject latency and buf subprocess
+	// startup overlap. Registration into files stays sequential — both
+	// to preserve user-precedence on conflicts and because
+	// protoregistry.Files is not safe for concurrent writes.
 	var protoPaths []string
-	for _, p := range paths {
-		if isBufModuleRef(p) {
-			if err := loadBufModule(ctx, p, files); err != nil {
-				return nil, err
-			}
+	for result, err := range concurrent.Run(ctx, paths, fetchSchemaInput) {
+		if err != nil {
+			return nil, err
+		}
+		if result.protoSource {
+			protoPaths = append(protoPaths, result.path)
 			continue
 		}
-		switch ext := lowerExt(p); ext {
-		case ".binpbset", ".protoset", ".pb":
-			if err := loadDescriptorSet(ctx, p, files); err != nil {
-				return nil, err
-			}
-		case ".proto":
-			protoPaths = append(protoPaths, p)
-		default:
-			return nil, fmt.Errorf("schema: %s: unrecognized input (want a .binpbset/.protoset/.pb path, a .proto path, or a buf.build/<owner>/<module> reference)", p)
+		if err := loadDescriptorSetBytes(result.path, result.data, files); err != nil {
+			return nil, err
 		}
 	}
 
@@ -150,12 +150,41 @@ func (r *filesTypeResolver) FindMessageByURL(url string) (protoreflect.MessageTy
 	return r.FindMessageByName(protoreflect.FullName(name))
 }
 
-func loadDescriptorSet(ctx context.Context, p string, files *protoregistry.Files) error {
-	data, err := readURI(ctx, p)
-	if err != nil {
-		return fmt.Errorf("schema: read %s: %w", p, err)
+// schemaInput holds the result of fetching one --registry entry. Either
+// data is set (for descriptor-set bytes — from a binpbset URI or a buf
+// build subprocess) or protoSource is true (the .proto path is forwarded
+// to the later protocompile pass; no I/O happens during fetch).
+type schemaInput struct {
+	path        string
+	data        []byte
+	protoSource bool
+}
+
+// fetchSchemaInput performs the per-path I/O for one --registry entry.
+// It is invoked from concurrent.Run, so it must be safe to call from
+// multiple goroutines and must read all of its inputs from ctx + p.
+// The returned schemaInput.path mirrors the input so the caller can
+// emit error messages that reference the source.
+func fetchSchemaInput(ctx context.Context, p string) (schemaInput, error) {
+	if isBufModuleRef(p) {
+		data, err := bufBuild(ctx, p)
+		if err != nil {
+			return schemaInput{}, err
+		}
+		return schemaInput{path: p, data: data}, nil
 	}
-	return loadDescriptorSetBytes(p, data, files)
+	switch lowerExt(p) {
+	case ".binpbset", ".protoset", ".pb":
+		data, err := readURI(ctx, p)
+		if err != nil {
+			return schemaInput{}, fmt.Errorf("schema: read %s: %w", p, err)
+		}
+		return schemaInput{path: p, data: data}, nil
+	case ".proto":
+		return schemaInput{path: p, protoSource: true}, nil
+	default:
+		return schemaInput{}, fmt.Errorf("schema: %s: unrecognized input (want a .binpbset/.protoset/.pb path, a .proto path, or a buf.build/<owner>/<module> reference)", p)
+	}
 }
 
 // loadDescriptorSetBytes parses data as a FileDescriptorSet and
@@ -189,19 +218,6 @@ func loadDescriptorSetBytes(source string, data []byte, files *protoregistry.Fil
 // matters.
 func isBufModuleRef(p string) bool {
 	return strings.HasPrefix(p, "buf.build/")
-}
-
-// loadBufModule shells out to the buf CLI to produce a FileDescriptorSet
-// for a BSR module reference, then loads it into files like any other
-// descriptor set source. The buf CLI handles BSR fetching, dependency
-// resolution, caching (~/.cache/buf/), and auth — features we get for
-// free by delegating instead of speaking the BSR API ourselves.
-func loadBufModule(ctx context.Context, ref string, files *protoregistry.Files) error {
-	data, err := bufBuild(ctx, ref)
-	if err != nil {
-		return err
-	}
-	return loadDescriptorSetBytes(ref, data, files)
 }
 
 // bufBuild invokes "buf build <ref> -o -" and returns the resulting
@@ -273,8 +289,13 @@ type uriResolver struct {
 }
 
 func (r *uriResolver) FindFileByPath(filename string) (protocompile.SearchResult, error) {
-	for _, inc := range r.includes {
-		data, err := readURI(r.ctx, joinPath(inc, filename))
+	// Fan out the per-include readURI calls so a remote root that 404s
+	// quickly doesn't block the slower one that holds the file (and
+	// vice versa). concurrent.Run yields results in input order, so
+	// user precedence on conflicts is preserved.
+	for data, err := range concurrent.Run(r.ctx, r.includes, func(ctx context.Context, inc string) ([]byte, error) {
+		return readURI(ctx, joinPath(inc, filename))
+	}) {
 		if err == nil {
 			return protocompile.SearchResult{Source: bytes.NewReader(data)}, nil
 		}
