@@ -7,10 +7,12 @@ require (
 	github.com/alecthomas/chroma/v2 v2.24.1
 	github.com/andybalholm/brotli v1.1.1
 	github.com/bluekeyes/go-gitdiff v0.8.1
+	github.com/bufbuild/protocompile v0.14.1
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/clipperhouse/displaywidth v0.11.0
 	github.com/creack/pty v1.1.24
+	github.com/firetiger-oss/concurrent v1.0.0
 	github.com/firetiger-oss/tigerblock v0.27.2
 	github.com/klauspost/compress v1.18.5
 	github.com/moby/buildkit v0.29.0
@@ -76,7 +78,6 @@ require (
 	github.com/envoyproxy/go-control-plane/envoy v1.36.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/firetiger-oss/concurrent v1.0.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect

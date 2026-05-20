@@ -1,6 +1,7 @@
 package stripes_test
 
 import (
+	"io"
 	"testing"
 
 	"github.com/firetiger-oss/stripes"
@@ -156,6 +157,59 @@ func TestFunc(t *testing.T) {
 				// but we can at least verify a function was returned
 			}
 		})
+	}
+}
+
+// TestFuncXPrefixAlias verifies that the legacy application/x-FOO form
+// resolves to a handler registered for application/FOO. The x- form is
+// what plenty of tools still emit for protobuf payloads (e.g.
+// application/x-protobuf), even though RFC 6648 deprecated the prefix.
+func TestFuncXPrefixAlias(t *testing.T) {
+	cases := []struct {
+		contentType string
+		wantNil     bool
+	}{
+		{"application/protobuf", false},
+		{"application/x-protobuf", false},                        // alias
+		{`application/x-protobuf; messageType="foo.Bar"`, false}, // alias + params
+		{"application/json", false},                              // direct hit unaffected
+		{"application/x-still-not-registered", true},             // alias still doesn't invent handlers
+	}
+	for _, tc := range cases {
+		r := stripes.Func(tc.contentType, "")
+		if (r == nil) != tc.wantNil {
+			t.Errorf("Func(%q) nil=%v, wantNil=%v", tc.contentType, r == nil, tc.wantNil)
+		}
+	}
+}
+
+func TestFuncSuffixParam(t *testing.T) {
+	var got map[string]string
+	stripes.Register(stripes.Format{
+		Name:        "_suffixparamtest",
+		ContentType: "application/x-suffixparamtest",
+		RendererFor: func(params map[string]string, _ string) stripes.Renderer {
+			got = params
+			return func(io.Writer, io.Reader, *stripes.Styles) {}
+		},
+	})
+
+	cases := []struct {
+		contentType string
+		wantSuffix  string
+	}{
+		{"application/x-suffixparamtest", ""},
+		{"application/x-suffixparamtest+json", "json"},
+		{"application/x-suffixparamtest+xml; charset=utf-8", "xml"},
+	}
+	for _, tc := range cases {
+		got = nil
+		if r := stripes.Func(tc.contentType, ""); r == nil {
+			t.Fatalf("Func(%q) = nil", tc.contentType)
+		}
+		if got[stripes.SuffixParam] != tc.wantSuffix {
+			t.Errorf("Func(%q): %s = %q, want %q", tc.contentType, stripes.SuffixParam, got[stripes.SuffixParam], tc.wantSuffix)
+		}
 	}
 }
 

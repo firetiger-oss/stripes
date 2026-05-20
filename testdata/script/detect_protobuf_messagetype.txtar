@@ -1,0 +1,11 @@
+# An HTTP source serving protobuf payload with a content-type carrying
+# both the x- legacy prefix AND a messageType MIME parameter resolves
+# the schema automatically — no --schema flag needed.
+# google.protobuf.StringValue is linked into the stripes binary via the
+# protobuf runtime, so its descriptor resolves through GlobalTypes
+# without any --registry either.
+exec stripes --color=never $STRIPES_TEST_HTTP_PROTOBUF
+cmp stdout expected.txt
+
+-- expected.txt --
+value: "stripes"

@@ -1,0 +1,13 @@
+# --registry requires --schema to select a message; missing --schema is
+# a hard error before any file is read.
+! exec stripes --color=never --registry input.proto data.binpb
+stderr 'requires --schema'
+
+-- input.proto --
+syntax = "proto3";
+package test.v1;
+
+message Foo {
+  string name = 1;
+}
+-- data.binpb --

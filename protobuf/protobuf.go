@@ -8,6 +8,11 @@
 // interpreted as the full message name used to look up the descriptor
 // in [protoregistry.GlobalTypes] / [protoregistry.GlobalFiles]. Without
 // a resolvable schema, the renderer falls back to wire-format display.
+//
+// application/protobuf+json (protojson encoding) is recognized through
+// the stripes registry's +suffix convention and decoded with
+// [protojson]. Output is always protobuf text format, regardless of the
+// input encoding.
 package protobuf
 
 import (
@@ -20,6 +25,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/firetiger-oss/stripes"
 	"github.com/muesli/reflow/wordwrap"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -31,6 +37,7 @@ func init() {
 	stripes.Register(stripes.Format{
 		Name:        "protobuf",
 		ContentType: "application/protobuf",
+		Extensions:  []string{".binpb"},
 		RendererFor: rendererFor,
 	})
 }
@@ -39,8 +46,24 @@ func init() {
 // [stripes.Func]. schemaURL is treated as a full message name; its base
 // is looked up in protoregistry.GlobalTypes, then GlobalFiles. When no
 // descriptor resolves, the wire-format renderer is returned.
-func rendererFor(_ map[string]string, schemaURL string) stripes.Renderer {
+//
+// When params[[stripes.SuffixParam]] is "json" (i.e. the original MIME
+// type was application/protobuf+json), the returned renderer decodes
+// protojson; otherwise it decodes binary protobuf. Output is the same
+// protobuf text format in both cases.
+//
+// When schemaURL is empty, the renderer falls back to the "messageType"
+// MIME parameter (e.g. application/protobuf; messageType="foo.Bar") —
+// the convention gRPC and several HTTP-protobuf tools use to carry the
+// payload's message name alongside the content type. MIME parameter
+// names are case-insensitive; mime.ParseMediaType lowercases them, so
+// the key here is "messagetype".
+func rendererFor(params map[string]string, schemaURL string) stripes.Renderer {
 	types := protoregistry.GlobalTypes
+	protojsonEncoded := params[stripes.SuffixParam] == "json"
+	if schemaURL == "" {
+		schemaURL = params["messagetype"]
+	}
 	if schemaURL == "" {
 		return New(nil, types)
 	}
@@ -48,7 +71,11 @@ func rendererFor(_ map[string]string, schemaURL string) stripes.Renderer {
 
 	messageType, err := types.FindMessageByName(fullName)
 	if err == nil {
-		return New(messageType.New().Descriptor(), types)
+		desc := messageType.New().Descriptor()
+		if protojsonEncoded {
+			return NewJSON(desc, types)
+		}
+		return New(desc, types)
 	}
 
 	desc, err := protoregistry.GlobalFiles.FindDescriptorByName(fullName)
@@ -56,6 +83,9 @@ func rendererFor(_ map[string]string, schemaURL string) stripes.Renderer {
 		return New(nil, types)
 	}
 	if msgDesc, ok := desc.(protoreflect.MessageDescriptor); ok {
+		if protojsonEncoded {
+			return NewJSON(msgDesc, types)
+		}
 		return New(msgDesc, types)
 	}
 	return New(nil, types)
@@ -68,9 +98,10 @@ var (
 	protoWireStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))             // Grey for wire format
 )
 
-// New returns a [stripes.Renderer] for protobuf messages. When d is
-// nil the renderer displays the raw wire format; otherwise it decodes
-// against the descriptor d, resolving nested message types through t.
+// New returns a [stripes.Renderer] for binary-encoded protobuf
+// messages. When d is nil the renderer displays the raw wire format;
+// otherwise it decodes against the descriptor d, resolving nested
+// message types through t.
 func New(d protoreflect.MessageDescriptor, t protoregistry.MessageTypeResolver) stripes.Renderer {
 	if d == nil {
 		return func(w io.Writer, r io.Reader, styles *stripes.Styles) {
@@ -79,6 +110,16 @@ func New(d protoreflect.MessageDescriptor, t protoregistry.MessageTypeResolver) 
 	}
 	return func(w io.Writer, r io.Reader, styles *stripes.Styles) {
 		printProtobufMessage(w, r, d, t, styles)
+	}
+}
+
+// NewJSON returns a [stripes.Renderer] for protojson-encoded protobuf
+// messages. The decoded message is rendered in the same protobuf text
+// format as [New]. d must not be nil; without a schema there is no
+// useful protojson decoding to attempt.
+func NewJSON(d protoreflect.MessageDescriptor, t protoregistry.MessageTypeResolver) stripes.Renderer {
+	return func(w io.Writer, r io.Reader, styles *stripes.Styles) {
+		printProtobufJSON(w, r, d, t, styles)
 	}
 }
 
@@ -111,6 +152,52 @@ func printProtobufMessage(w io.Writer, r io.Reader, d protoreflect.MessageDescri
 
 	// Render in protobuf text format
 	renderMessageFields(w, msg, d, t, styles)
+}
+
+// printProtobufJSON unmarshals data as protojson against descriptor d
+// and renders the resulting message in protobuf text format. Any
+// resolution falls back to protoregistry.GlobalTypes — callers that
+// have loaded descriptors via stripes/protobuf/schema rely on the CLI
+// to have populated GlobalFiles; embedded Any payloads still need
+// matching MessageTypes in GlobalTypes to resolve cleanly.
+func printProtobufJSON(w io.Writer, r io.Reader, d protoreflect.MessageDescriptor, t protoregistry.MessageTypeResolver, styles *stripes.Styles) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		fmt.Fprintf(w, "Error reading protobuf data: %v", err)
+		return
+	}
+
+	msg := dynamicpb.NewMessage(d)
+	opts := protojson.UnmarshalOptions{
+		DiscardUnknown: true,
+		Resolver:       protoregistry.GlobalTypes,
+	}
+	if err := opts.Unmarshal(data, msg); err != nil {
+		fmt.Fprintf(w, "Error unmarshaling protojson: %v", err)
+		return
+	}
+
+	renderMessageFields(w, msg, d, t, styles)
+}
+
+// indentedStyles returns a shallow copy of styles with Width reduced by
+// the indent size — used at every PrefixWriter creation so the
+// recursive renderer sees the actual width available at its depth.
+// Without this, deeply-nested string values get wrapped to the raw
+// terminal width and overflow once the chain's leading indentation is
+// prepended on output.
+func indentedStyles(styles *stripes.Styles) *stripes.Styles {
+	if styles == nil {
+		return nil
+	}
+	out := *styles
+	if out.Width > 0 {
+		out.Width -= 2
+		if out.Width < 0 {
+			out.Width = 0
+		}
+	}
+	return &out
 }
 
 func renderMessageFields(w io.Writer, msg protoreflect.Message, desc protoreflect.MessageDescriptor, typeResolver protoregistry.MessageTypeResolver, styles *stripes.Styles) {
@@ -225,9 +312,10 @@ func renderMapField(w io.Writer, msg protoreflect.Message, field protoreflect.Fi
 		fmt.Fprintf(w, "%s: %s\n", fieldName, protoDelimStyle.Render("{"))
 
 		indentWriter := stripes.NewPrefixWriter(w, "  ")
+		innerStyles := indentedStyles(styles)
 		fmt.Fprintf(indentWriter, "%s: %s\n", protoKeyStyle.Render("key"), formatMapKey(key, keyKind))
 		fmt.Fprintf(indentWriter, "%s: ", protoKeyStyle.Render("value"))
-		renderMapValue(indentWriter, value, field.MapValue(), styles)
+		renderMapValue(indentWriter, value, field.MapValue(), innerStyles)
 		fmt.Fprint(indentWriter, "\n")
 
 		fmt.Fprintf(w, "%s\n", protoDelimStyle.Render("}"))
@@ -293,7 +381,7 @@ func renderMessageValue(w io.Writer, msg protoreflect.Message, desc protoreflect
 		fmt.Fprint(w, "\n")
 
 		indentWriter := stripes.NewPrefixWriter(w, "  ")
-		renderMessageFields(indentWriter, msg, desc, typeResolver, styles)
+		renderMessageFields(indentWriter, msg, desc, typeResolver, indentedStyles(styles))
 
 		fmt.Fprintf(w, "%s", protoDelimStyle.Render("}"))
 	} else {
@@ -400,7 +488,7 @@ func renderAnyValue(w io.Writer, msg protoreflect.Message, typeResolver protoreg
 
 				indentWriter := stripes.NewPrefixWriter(w, "  ")
 				fmt.Fprintf(indentWriter, "%s: ", protoKeyStyle.Render("["+typeURL+"]"))
-				renderMessageValue(indentWriter, embeddedMsg, messageType.Descriptor(), typeResolver, styles)
+				renderMessageValue(indentWriter, embeddedMsg, messageType.Descriptor(), typeResolver, indentedStyles(styles))
 				fmt.Fprint(indentWriter, "\n")
 
 				fmt.Fprint(w, protoDelimStyle.Render("}"))
@@ -427,13 +515,24 @@ func renderAnyValue(w io.Writer, msg protoreflect.Message, typeResolver protoreg
 func renderScalarValueWithStyles(w io.Writer, value protoreflect.Value, kind protoreflect.Kind, styles *stripes.Styles) {
 	switch kind {
 	case protoreflect.StringKind:
-		str := value.String()
+		quoted := strconv.Quote(value.String())
 		if styles != nil && styles.Width > 0 {
-			quotedValue := strconv.Quote(str)
-			wrappedQuoted := wrapProtobufString(quotedValue, styles.Width)
-			fmt.Fprint(w, protoStringStyle.Render(wrappedQuoted))
+			wrapped := wrapProtobufString(quoted, styles.Width)
+			// Style each wrapped line on its own: lipgloss pads a
+			// multi-line block to the widest line's width, which would
+			// add invisible trailing spaces and push the chain-indented
+			// output past the terminal width.
+			if strings.Contains(wrapped, "\n") {
+				lines := strings.Split(wrapped, "\n")
+				for i, line := range lines {
+					lines[i] = protoStringStyle.Render(line)
+				}
+				fmt.Fprint(w, strings.Join(lines, "\n"))
+			} else {
+				fmt.Fprint(w, protoStringStyle.Render(wrapped))
+			}
 		} else {
-			fmt.Fprint(w, protoStringStyle.Render(strconv.Quote(str)))
+			fmt.Fprint(w, protoStringStyle.Render(quoted))
 		}
 	case protoreflect.BytesKind:
 		// Render bytes as hex string
@@ -580,27 +679,41 @@ func getWireTypeName(wireType protowire.Type) string {
 	}
 }
 
-// wrapProtobufString wraps protobuf string values with proper indentation
+// wrapProtobufString wraps protobuf string values with proper
+// indentation. width is the available width at the current nesting
+// depth — the caller is responsible for shrinking it as it descends
+// (see [indentedStyles]). The budget further reserves margin to cover
+// the first line's "<field_name>: " prefix and the continuation indent
+// added on subsequent lines.
 func wrapProtobufString(quotedValue string, width int) string {
-	if width <= 0 || len(quotedValue) <= width-4 {
+	// firstLineMargin reserves space on the first wrapped line for the
+	// "<field_name>: " prefix that the caller emits before the value.
+	// Most protobuf field names fit comfortably in this budget; very
+	// long names may still cause a few characters of overflow but no
+	// mid-word break.
+	const firstLineMargin = 16
+	if width <= 0 || len(quotedValue) <= width-firstLineMargin {
 		return quotedValue
 	}
 
-	// Calculate available width (reserve some space for field name and indentation)
-	availableWidth := width - 4
+	availableWidth := width - firstLineMargin
 	if availableWidth < 20 {
 		return quotedValue
 	}
 
-	// Apply word wrapping to the quoted content
 	wrappedContent := wordwrap.String(quotedValue, availableWidth)
 
-	// Handle multi-line by adding proper indentation for continuation lines
+	// reflow/wordwrap pads each wrapped line out to the budget with
+	// trailing spaces; those are invisible but still consume terminal
+	// columns and would push the chain-indented output past the
+	// terminal width. Strip them per line.
 	if strings.Contains(wrappedContent, "\n") {
-		// Use minimal indentation for continuation lines (2 spaces like field values)
+		lines := strings.Split(wrappedContent, "\n")
+		for i := range lines {
+			lines[i] = strings.TrimRight(lines[i], " \t")
+		}
 		indent := "  "
-		return strings.ReplaceAll(wrappedContent, "\n", "\n"+indent)
+		return strings.Join(lines, "\n"+indent)
 	}
-
-	return wrappedContent
+	return strings.TrimRight(wrappedContent, " \t")
 }

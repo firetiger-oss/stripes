@@ -55,6 +55,15 @@ type Format struct {
 	RendererFor func(params map[string]string, schemaURL string) Renderer
 }
 
+// SuffixParam is the key under which [Func] records the +suffix stripped
+// from an application/* MIME type (e.g. the "json" in
+// "application/protobuf+json") into the params map passed to
+// [Format.RendererFor]. It is reserved: a "+" prefix never appears in a
+// valid RFC 7231 parameter name, so the key cannot collide with a real
+// MIME parameter. Formats with multiple encodings (e.g. protobuf binary
+// vs. protojson) inspect this key to pick between them.
+const SuffixParam = "+suffix"
+
 // Simple wraps a parameter-less Renderer as a RendererFor function. Use
 // in the common case where a format's renderer ignores both MIME
 // parameters and the schema URL:
@@ -155,9 +164,25 @@ var (
 func Func(contentType, schemaURL string) Renderer {
 	mediaType, params, _ := mime.ParseMediaType(contentType)
 
+	// For application/X+Y, prefer a handler registered for application/X
+	// (the specific subtype) and record the stripped suffix in params so
+	// the handler can pick its encoding. If no such handler exists, fall
+	// back to application/Y (the structural-suffix convention — e.g.
+	// application/ld+json → application/json).
 	if strings.HasPrefix(mediaType, "application/") {
 		if i := strings.LastIndexByte(mediaType, '+'); i >= 0 {
-			mediaType = "application/" + mediaType[i+1:]
+			suffix := mediaType[i+1:]
+			registryMu.RLock()
+			f := registryByCT[mediaType[:i]]
+			registryMu.RUnlock()
+			if f != nil {
+				if params == nil {
+					params = map[string]string{}
+				}
+				params[SuffixParam] = suffix
+				return f.RendererFor(params, schemaURL)
+			}
+			mediaType = "application/" + suffix
 		}
 	}
 
@@ -166,6 +191,22 @@ func Func(contentType, schemaURL string) Renderer {
 	registryMu.RUnlock()
 	if f != nil {
 		return f.RendererFor(params, schemaURL)
+	}
+
+	// "application/x-foo" is the legacy form of "application/foo"; RFC
+	// 6648 deprecated the x- prefix but plenty of tools still emit it
+	// (e.g. application/x-protobuf is the historical spelling of
+	// application/protobuf). Fall back to the canonical form only when
+	// the x- form itself isn't registered, so registrations that
+	// deliberately use the x- prefix still resolve directly.
+	if strings.HasPrefix(mediaType, "application/x-") {
+		canonical := "application/" + mediaType[len("application/x-"):]
+		registryMu.RLock()
+		f = registryByCT[canonical]
+		registryMu.RUnlock()
+		if f != nil {
+			return f.RendererFor(params, schemaURL)
+		}
 	}
 
 	if strings.HasPrefix(mediaType, "text/") {
