@@ -32,6 +32,7 @@ import (
 	"github.com/firetiger-oss/stripes"
 	_ "github.com/firetiger-oss/stripes/all"
 	stripescobra "github.com/firetiger-oss/stripes/cobra"
+	"github.com/firetiger-oss/stripes/protobuf/schema"
 	basicauth "github.com/firetiger-oss/tigerblock/secret/authn/basic"
 	bearerauth "github.com/firetiger-oss/tigerblock/secret/authn/bearer"
 	"github.com/firetiger-oss/tigerblock/storage"
@@ -43,6 +44,8 @@ import (
 	_ "github.com/firetiger-oss/tigerblock/storage/s3"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
 )
 
 var version = "dev"
@@ -70,12 +73,23 @@ AUTHENTICATION
     --basic-auth user:password
     --bearer-token TOKEN
   If both are set, --basic-auth takes precedence.
+
+PROTOBUF SCHEMAS
+
+  --registry loads a descriptor source; --schema names the message.
+  --registry may repeat. Accepted shapes:
+    *.binpbset / *.protoset / *.pb     FileDescriptorSet bytes
+    *.proto                            compiled in-process (--include adds import roots)
+    buf.build/<owner>/<module>[:ref]   fetched via the buf CLI
+
 `
 
 type config struct {
 	format      string
 	contentType string
 	schema      string
+	registries  []string
+	includes    []string
 	color       string
 	paging      string
 	profile     string
@@ -109,6 +123,8 @@ func main() {
 	f.StringVarP(&cfg.format, "format", "f", "auto", "input `format`")
 	f.StringVar(&cfg.contentType, "content-type", "", "override MIME `type` (e.g. application/vnd.foo+json)")
 	f.StringVar(&cfg.schema, "schema", "", "schema `url` (protobuf full name)")
+	f.StringArrayVar(&cfg.registries, "registry", nil, "protobuf schema source (path|uri) — .binpbset/.protoset/.pb or .proto; repeatable")
+	f.StringArrayVar(&cfg.includes, "include", nil, "protobuf .proto import-path root (path|uri); repeatable")
 	f.StringVar(&cfg.color, "color", "auto", "color `mode` (always|never|auto)")
 	f.StringVar(&cfg.paging, "paging", "auto", "paging `mode` (always|never|auto)")
 	f.StringVar(&cfg.profile, "profile", "", "color profile `name` or YAML file")
@@ -131,6 +147,9 @@ func main() {
 func validateConfig(cfg *config) error {
 	if cfg.basicAuth != "" && !strings.Contains(cfg.basicAuth, ":") {
 		return fmt.Errorf("invalid --basic-auth %q (want user:password)", cfg.basicAuth)
+	}
+	if len(cfg.registries) > 0 && cfg.schema == "" {
+		return fmt.Errorf("--registry requires --schema to select a message")
 	}
 	switch cfg.color {
 	case "auto", "always", "never":
@@ -181,6 +200,38 @@ func run(ctx context.Context, cfg *config, files []string) error {
 		http.DefaultTransport = bearerauth.NewTransport(http.DefaultTransport, cfg.bearerToken)
 	}
 
+	if len(cfg.registries) > 0 {
+		loaded, err := schema.LoadRegistry(ctx, cfg.registries, cfg.includes)
+		if err != nil {
+			_ = finish()
+			return err
+		}
+		loaded.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
+			// Skip files already in the process registry — e.g.
+			// well-known types pulled in as transitive .proto imports
+			// are present from the protobuf runtime and would conflict.
+			if _, e := protoregistry.GlobalFiles.FindFileByPath(fd.Path()); e == nil {
+				return true
+			}
+			if registerErr := protoregistry.GlobalFiles.RegisterFile(fd); registerErr != nil {
+				err = fmt.Errorf("register %s: %w", fd.Path(), registerErr)
+				return false
+			}
+			return true
+		})
+		if err != nil {
+			_ = finish()
+			return err
+		}
+	}
+
+	if cfg.schema != "" {
+		if err := resolveSchema(cfg.schema); err != nil {
+			_ = finish()
+			return err
+		}
+	}
+
 	if len(files) == 0 {
 		renderOne(sink, "", os.Stdin, cfg, styles)
 		return finish()
@@ -214,6 +265,24 @@ func run(ctx context.Context, cfg *config, files []string) error {
 		}
 	}
 	return finish()
+}
+
+// resolveSchema verifies that schema (a protobuf full message name)
+// resolves against protoregistry.GlobalTypes / GlobalFiles. It returns
+// an error if neither registry knows the name, so a typo in --schema
+// surfaces before the file payload is decoded as a different shape.
+func resolveSchema(name string) error {
+	fullName := protoreflect.FullName(name)
+	if _, err := protoregistry.GlobalTypes.FindMessageByName(fullName); err == nil {
+		return nil
+	}
+	if desc, err := protoregistry.GlobalFiles.FindDescriptorByName(fullName); err == nil {
+		if _, ok := desc.(protoreflect.MessageDescriptor); ok {
+			return nil
+		}
+		return fmt.Errorf("--schema %q resolves to a non-message descriptor", name)
+	}
+	return fmt.Errorf("--schema %q: message not found (try --registry to load schema sources)", name)
 }
 
 // displayName is the name handed to stripes.Detect for content-type sniffing.
@@ -254,6 +323,11 @@ func renderOne(sink io.Writer, name string, input io.Reader, cfg *config, styles
 	contentType := cfg.contentType
 	if contentType == "" {
 		contentType = formatToContentType(cfg.format)
+		// Smart -f protobuf: a .json input under explicit -f protobuf
+		// is interpreted as protojson rather than binary protobuf.
+		if cfg.format == "protobuf" && strings.HasSuffix(strings.ToLower(name), ".json") {
+			contentType = "application/protobuf+json"
+		}
 	}
 	if contentType == "" {
 		contentType = stripes.Detect(name, peek)

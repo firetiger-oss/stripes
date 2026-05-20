@@ -1,0 +1,16 @@
+# --registry buf.build/<owner>/<module> shells out to the buf CLI to
+# fetch a FileDescriptorSet, then loads it like any other descriptor
+# source. CI uses a stub-buf binary on PATH that emits a fixed schema
+# defining stub.v1.Hello { string greeting = 1; }. An empty wire-format
+# payload is enough to prove the schema loaded and decoded — a broken
+# schema would surface here as a hard error before any rendering.
+exec stripes --color=never --registry buf.build/stub/hello --schema stub.v1.Hello empty.binpb
+cmp stdout expected.txt
+
+# A buf module reference that the stub doesn't know about → the stub
+# exits non-zero and stripes surfaces buf's stderr in its own error.
+! exec stripes --color=never --registry buf.build/stub/missing --schema stub.v1.Hello empty.binpb
+stderr 'module buf.build/stub/missing not found'
+
+-- empty.binpb --
+-- expected.txt --

@@ -37,6 +37,12 @@ func TestMain(m *testing.M) {
 	if err := buildBinary(binDir, "stub-pager", "./testdata/stubcmd/stub-pager"); err != nil {
 		panic(err)
 	}
+	// stub-buf is built as "buf" so stripes finds it on PATH when
+	// handling --registry buf.build/... entries; testscripts then see
+	// the stub instead of a real buf install.
+	if err := buildBinary(binDir, "buf", "./testdata/stubcmd/stub-buf"); err != nil {
+		panic(err)
+	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

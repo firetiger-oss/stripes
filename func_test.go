@@ -1,6 +1,7 @@
 package stripes_test
 
 import (
+	"io"
 	"testing"
 
 	"github.com/firetiger-oss/stripes"
@@ -156,6 +157,36 @@ func TestFunc(t *testing.T) {
 				// but we can at least verify a function was returned
 			}
 		})
+	}
+}
+
+func TestFuncSuffixParam(t *testing.T) {
+	var got map[string]string
+	stripes.Register(stripes.Format{
+		Name:        "_suffixparamtest",
+		ContentType: "application/x-suffixparamtest",
+		RendererFor: func(params map[string]string, _ string) stripes.Renderer {
+			got = params
+			return func(io.Writer, io.Reader, *stripes.Styles) {}
+		},
+	})
+
+	cases := []struct {
+		contentType string
+		wantSuffix  string
+	}{
+		{"application/x-suffixparamtest", ""},
+		{"application/x-suffixparamtest+json", "json"},
+		{"application/x-suffixparamtest+xml; charset=utf-8", "xml"},
+	}
+	for _, tc := range cases {
+		got = nil
+		if r := stripes.Func(tc.contentType, ""); r == nil {
+			t.Fatalf("Func(%q) = nil", tc.contentType)
+		}
+		if got[stripes.SuffixParam] != tc.wantSuffix {
+			t.Errorf("Func(%q): %s = %q, want %q", tc.contentType, stripes.SuffixParam, got[stripes.SuffixParam], tc.wantSuffix)
+		}
 	}
 }
 

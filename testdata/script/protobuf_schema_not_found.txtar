@@ -1,0 +1,7 @@
+# --schema set to a name that resolves nowhere is a hard error.
+# Previously this silently dropped to wire-format rendering; now it
+# surfaces the typo before any decoding happens.
+! exec stripes --color=never --schema does.not.Exist data.binpb
+stderr 'message not found'
+
+-- data.binpb --

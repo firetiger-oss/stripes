@@ -235,3 +235,78 @@ func TestProtobufErrorHandling(t *testing.T) {
 		}
 	})
 }
+
+func TestProtobufJSONRendering(t *testing.T) {
+	msg := &commonv1.KeyValue{Key: "service.name", Value: &commonv1.AnyValue{
+		Value: &commonv1.AnyValue_StringValue{StringValue: "stripes"},
+	}}
+	data := []byte(`{"key":"service.name","value":{"stringValue":"stripes"}}`)
+	desc := msg.ProtoReflect().Descriptor()
+
+	var buf bytes.Buffer
+	renderer := NewJSON(desc, protoregistry.GlobalTypes)
+	renderer(&buf, bytes.NewReader(data), stripes.DefaultStyles)
+
+	got := ansi.Strip(buf.String())
+	want := `key: "service.name"
+value: "stripes"
+`
+	if got != want {
+		t.Errorf("Expected:\n%q\nGot:\n%q", want, got)
+	}
+}
+
+func TestProtobufJSONInvalidPayload(t *testing.T) {
+	desc := (&emptypb.Empty{}).ProtoReflect().Descriptor()
+
+	var buf bytes.Buffer
+	renderer := NewJSON(desc, protoregistry.GlobalTypes)
+	renderer(&buf, bytes.NewReader([]byte("not json")), stripes.DefaultStyles)
+
+	got := buf.String()
+	if !strings.HasPrefix(got, "Error unmarshaling protojson:") {
+		t.Errorf("Expected error prefix 'Error unmarshaling protojson:', got: %q", got)
+	}
+}
+
+// TestProtobufFuncDispatch verifies the registry dispatch picks the
+// binary or protojson renderer based on the +suffix carried in params
+// (set by stripes.Func when collapsing application/protobuf+json).
+func TestProtobufFuncDispatch(t *testing.T) {
+	msg := &commonv1.KeyValue{Key: "hi"}
+	desc := msg.ProtoReflect().Descriptor()
+	schemaURL := string(desc.FullName())
+
+	binary := rendererFor(nil, schemaURL)
+	if binary == nil {
+		t.Fatalf("rendererFor(nil, %q) = nil", schemaURL)
+	}
+	withJSON := rendererFor(map[string]string{stripes.SuffixParam: "json"}, schemaURL)
+	if withJSON == nil {
+		t.Fatalf("rendererFor(+json, %q) = nil", schemaURL)
+	}
+
+	binaryData, err := proto.Marshal(msg)
+	if err != nil {
+		t.Fatalf("proto.Marshal: %v", err)
+	}
+	var bbuf bytes.Buffer
+	binary(&bbuf, bytes.NewReader(binaryData), stripes.DefaultStyles)
+	if !strings.Contains(ansi.Strip(bbuf.String()), "\"hi\"") {
+		t.Errorf("binary renderer output: %q", bbuf.String())
+	}
+
+	var jbuf bytes.Buffer
+	withJSON(&jbuf, bytes.NewReader([]byte(`{"key":"hi"}`)), stripes.DefaultStyles)
+	if !strings.Contains(ansi.Strip(jbuf.String()), "\"hi\"") {
+		t.Errorf("protojson renderer output: %q", jbuf.String())
+	}
+}
+
+// TestBinpbExtensionDetection verifies that the registry picks up the
+// .binpb extension registered alongside application/protobuf.
+func TestBinpbExtensionDetection(t *testing.T) {
+	if ct := stripes.Detect("payload.binpb", nil); ct != "application/protobuf" {
+		t.Errorf("Detect(payload.binpb) = %q, want application/protobuf", ct)
+	}
+}
