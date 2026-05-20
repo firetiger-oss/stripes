@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
+	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 	"github.com/rogpeppe/go-internal/testscript"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -58,6 +60,27 @@ func TestMain(m *testing.M) {
 	}
 	pbType := `application/x-protobuf; messageType="` + string(pbMsg.ProtoReflect().Descriptor().FullName()) + `"`
 
+	// OTLP TracesData payload to exercise the side-effect import in
+	// stripes/protobuf/otlp: the CLI binary has the OTLP descriptors
+	// pre-registered in protoregistry.GlobalTypes, so the messageType
+	// header alone resolves the schema with no --registry.
+	otlpMsg := &tracev1.TracesData{ResourceSpans: []*tracev1.ResourceSpans{{
+		ScopeSpans: []*tracev1.ScopeSpans{{
+			Spans: []*tracev1.Span{{
+				Name: "GET /api",
+				Attributes: []*commonv1.KeyValue{{
+					Key:   "http.method",
+					Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "GET"}},
+				}},
+			}},
+		}},
+	}}}
+	otlpBody, err := proto.Marshal(otlpMsg)
+	if err != nil {
+		panic(err)
+	}
+	otlpType := `application/x-protobuf; messageType="` + string(otlpMsg.ProtoReflect().Descriptor().FullName()) + `"`
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/basic/data.json":
@@ -75,6 +98,10 @@ func TestMain(m *testing.M) {
 			w.Header().Set("Content-Type", pbType)
 			_, _ = w.Write(pbBody)
 			return
+		case "/proto/otlp":
+			w.Header().Set("Content-Type", otlpType)
+			_, _ = w.Write(otlpBody)
+			return
 		default:
 			http.NotFound(w, r)
 			return
@@ -88,6 +115,7 @@ func TestMain(m *testing.M) {
 	os.Setenv("STRIPES_TEST_HTTP_BASIC", srv.URL+"/basic/data.json")
 	os.Setenv("STRIPES_TEST_HTTP_BEARER", srv.URL+"/bearer/data.json")
 	os.Setenv("STRIPES_TEST_HTTP_PROTOBUF", srv.URL+"/proto/keyvalue")
+	os.Setenv("STRIPES_TEST_HTTP_OTLP", srv.URL+"/proto/otlp")
 	os.Setenv("STRIPES_TEST_BASIC_USER", testBasicUser+":"+testBasicPass)
 	os.Setenv("STRIPES_TEST_BEARER_TOKEN", testBearerTok)
 	os.Exit(m.Run())
@@ -112,6 +140,7 @@ func TestCLI(t *testing.T) {
 			env.Setenv("STRIPES_TEST_HTTP_BASIC", os.Getenv("STRIPES_TEST_HTTP_BASIC"))
 			env.Setenv("STRIPES_TEST_HTTP_BEARER", os.Getenv("STRIPES_TEST_HTTP_BEARER"))
 			env.Setenv("STRIPES_TEST_HTTP_PROTOBUF", os.Getenv("STRIPES_TEST_HTTP_PROTOBUF"))
+			env.Setenv("STRIPES_TEST_HTTP_OTLP", os.Getenv("STRIPES_TEST_HTTP_OTLP"))
 			env.Setenv("STRIPES_TEST_BASIC_USER", os.Getenv("STRIPES_TEST_BASIC_USER"))
 			env.Setenv("STRIPES_TEST_BEARER_TOKEN", os.Getenv("STRIPES_TEST_BEARER_TOKEN"))
 			return nil

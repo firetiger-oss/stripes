@@ -1,0 +1,20 @@
+# OTLP types are pre-registered in protoregistry.GlobalTypes via the
+# stripes/protobuf/otlp side-effect import baked into the CLI binary.
+# So a TracesData payload served with an "application/x-protobuf;
+# messageType=opentelemetry.proto.trace.v1.TracesData" header decodes
+# end-to-end with zero flags.
+exec stripes --color=never $STRIPES_TEST_HTTP_OTLP
+cmp stdout expected.txt
+
+-- expected.txt --
+resource_spans: {
+  scope_spans: {
+    spans: {
+      name: "GET /api"
+      attributes: {
+        key: "http.method"
+        value: "GET"
+      }
+    }
+  }
+}

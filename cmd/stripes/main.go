@@ -32,6 +32,7 @@ import (
 	"github.com/firetiger-oss/stripes"
 	_ "github.com/firetiger-oss/stripes/all"
 	stripescobra "github.com/firetiger-oss/stripes/cobra"
+	_ "github.com/firetiger-oss/stripes/protobuf/otlp"
 	"github.com/firetiger-oss/stripes/protobuf/schema"
 	basicauth "github.com/firetiger-oss/tigerblock/secret/authn/basic"
 	bearerauth "github.com/firetiger-oss/tigerblock/secret/authn/bearer"
