@@ -210,22 +210,17 @@ func run(ctx context.Context, cfg *config, files []string) error {
 			_ = finish()
 			return err
 		}
-		loaded.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
+		for fd := range loaded.RangeFiles {
 			// Skip files already in the process registry — e.g.
 			// well-known types pulled in as transitive .proto imports
 			// are present from the protobuf runtime and would conflict.
 			if _, e := protoregistry.GlobalFiles.FindFileByPath(fd.Path()); e == nil {
-				return true
+				continue
 			}
-			if registerErr := protoregistry.GlobalFiles.RegisterFile(fd); registerErr != nil {
-				err = fmt.Errorf("register %s: %w", fd.Path(), registerErr)
-				return false
+			if e := protoregistry.GlobalFiles.RegisterFile(fd); e != nil {
+				_ = finish()
+				return fmt.Errorf("register %s: %w", fd.Path(), e)
 			}
-			return true
-		})
-		if err != nil {
-			_ = finish()
-			return err
 		}
 	}
 
