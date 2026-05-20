@@ -170,6 +170,26 @@ func printProtobufJSON(w io.Writer, r io.Reader, d protoreflect.MessageDescripto
 	renderMessageFields(w, msg, d, t, styles)
 }
 
+// indentedStyles returns a shallow copy of styles with Width reduced by
+// the indent size — used at every PrefixWriter creation so the
+// recursive renderer sees the actual width available at its depth.
+// Without this, deeply-nested string values get wrapped to the raw
+// terminal width and overflow once the chain's leading indentation is
+// prepended on output.
+func indentedStyles(styles *stripes.Styles) *stripes.Styles {
+	if styles == nil {
+		return nil
+	}
+	out := *styles
+	if out.Width > 0 {
+		out.Width -= 2
+		if out.Width < 0 {
+			out.Width = 0
+		}
+	}
+	return &out
+}
+
 func renderMessageFields(w io.Writer, msg protoreflect.Message, desc protoreflect.MessageDescriptor, typeResolver protoregistry.MessageTypeResolver, styles *stripes.Styles) {
 	fields := desc.Fields()
 
@@ -282,9 +302,10 @@ func renderMapField(w io.Writer, msg protoreflect.Message, field protoreflect.Fi
 		fmt.Fprintf(w, "%s: %s\n", fieldName, protoDelimStyle.Render("{"))
 
 		indentWriter := stripes.NewPrefixWriter(w, "  ")
+		innerStyles := indentedStyles(styles)
 		fmt.Fprintf(indentWriter, "%s: %s\n", protoKeyStyle.Render("key"), formatMapKey(key, keyKind))
 		fmt.Fprintf(indentWriter, "%s: ", protoKeyStyle.Render("value"))
-		renderMapValue(indentWriter, value, field.MapValue(), styles)
+		renderMapValue(indentWriter, value, field.MapValue(), innerStyles)
 		fmt.Fprint(indentWriter, "\n")
 
 		fmt.Fprintf(w, "%s\n", protoDelimStyle.Render("}"))
@@ -350,7 +371,7 @@ func renderMessageValue(w io.Writer, msg protoreflect.Message, desc protoreflect
 		fmt.Fprint(w, "\n")
 
 		indentWriter := stripes.NewPrefixWriter(w, "  ")
-		renderMessageFields(indentWriter, msg, desc, typeResolver, styles)
+		renderMessageFields(indentWriter, msg, desc, typeResolver, indentedStyles(styles))
 
 		fmt.Fprintf(w, "%s", protoDelimStyle.Render("}"))
 	} else {
@@ -457,7 +478,7 @@ func renderAnyValue(w io.Writer, msg protoreflect.Message, typeResolver protoreg
 
 				indentWriter := stripes.NewPrefixWriter(w, "  ")
 				fmt.Fprintf(indentWriter, "%s: ", protoKeyStyle.Render("["+typeURL+"]"))
-				renderMessageValue(indentWriter, embeddedMsg, messageType.Descriptor(), typeResolver, styles)
+				renderMessageValue(indentWriter, embeddedMsg, messageType.Descriptor(), typeResolver, indentedStyles(styles))
 				fmt.Fprint(indentWriter, "\n")
 
 				fmt.Fprint(w, protoDelimStyle.Render("}"))
@@ -484,13 +505,24 @@ func renderAnyValue(w io.Writer, msg protoreflect.Message, typeResolver protoreg
 func renderScalarValueWithStyles(w io.Writer, value protoreflect.Value, kind protoreflect.Kind, styles *stripes.Styles) {
 	switch kind {
 	case protoreflect.StringKind:
-		str := value.String()
+		quoted := strconv.Quote(value.String())
 		if styles != nil && styles.Width > 0 {
-			quotedValue := strconv.Quote(str)
-			wrappedQuoted := wrapProtobufString(quotedValue, styles.Width)
-			fmt.Fprint(w, protoStringStyle.Render(wrappedQuoted))
+			wrapped := wrapProtobufString(quoted, styles.Width)
+			// Style each wrapped line on its own: lipgloss pads a
+			// multi-line block to the widest line's width, which would
+			// add invisible trailing spaces and push the chain-indented
+			// output past the terminal width.
+			if strings.Contains(wrapped, "\n") {
+				lines := strings.Split(wrapped, "\n")
+				for i, line := range lines {
+					lines[i] = protoStringStyle.Render(line)
+				}
+				fmt.Fprint(w, strings.Join(lines, "\n"))
+			} else {
+				fmt.Fprint(w, protoStringStyle.Render(wrapped))
+			}
 		} else {
-			fmt.Fprint(w, protoStringStyle.Render(strconv.Quote(str)))
+			fmt.Fprint(w, protoStringStyle.Render(quoted))
 		}
 	case protoreflect.BytesKind:
 		// Render bytes as hex string
@@ -637,27 +669,41 @@ func getWireTypeName(wireType protowire.Type) string {
 	}
 }
 
-// wrapProtobufString wraps protobuf string values with proper indentation
+// wrapProtobufString wraps protobuf string values with proper
+// indentation. width is the available width at the current nesting
+// depth — the caller is responsible for shrinking it as it descends
+// (see [indentedStyles]). The budget further reserves margin to cover
+// the first line's "<field_name>: " prefix and the continuation indent
+// added on subsequent lines.
 func wrapProtobufString(quotedValue string, width int) string {
-	if width <= 0 || len(quotedValue) <= width-4 {
+	// firstLineMargin reserves space on the first wrapped line for the
+	// "<field_name>: " prefix that the caller emits before the value.
+	// Most protobuf field names fit comfortably in this budget; very
+	// long names may still cause a few characters of overflow but no
+	// mid-word break.
+	const firstLineMargin = 16
+	if width <= 0 || len(quotedValue) <= width-firstLineMargin {
 		return quotedValue
 	}
 
-	// Calculate available width (reserve some space for field name and indentation)
-	availableWidth := width - 4
+	availableWidth := width - firstLineMargin
 	if availableWidth < 20 {
 		return quotedValue
 	}
 
-	// Apply word wrapping to the quoted content
 	wrappedContent := wordwrap.String(quotedValue, availableWidth)
 
-	// Handle multi-line by adding proper indentation for continuation lines
+	// reflow/wordwrap pads each wrapped line out to the budget with
+	// trailing spaces; those are invisible but still consume terminal
+	// columns and would push the chain-indented output past the
+	// terminal width. Strip them per line.
 	if strings.Contains(wrappedContent, "\n") {
-		// Use minimal indentation for continuation lines (2 spaces like field values)
+		lines := strings.Split(wrappedContent, "\n")
+		for i := range lines {
+			lines[i] = strings.TrimRight(lines[i], " \t")
+		}
 		indent := "  "
-		return strings.ReplaceAll(wrappedContent, "\n", "\n"+indent)
+		return strings.Join(lines, "\n"+indent)
 	}
-
-	return wrappedContent
+	return strings.TrimRight(wrappedContent, " \t")
 }

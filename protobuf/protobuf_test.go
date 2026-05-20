@@ -310,3 +310,55 @@ func TestBinpbExtensionDetection(t *testing.T) {
 		t.Errorf("Detect(payload.binpb) = %q, want application/protobuf", ct)
 	}
 }
+
+// TestProtobufWrapRespectsNestingDepth guards against the bug where
+// long string values inside deeply-nested messages wrapped to the raw
+// terminal width and overflowed once the chain indent was prepended.
+// Builds a 4-level-deep message holding a long string and verifies
+// every rendered line — including the wrapped continuation lines —
+// fits within the requested width.
+func TestProtobufWrapRespectsNestingDepth(t *testing.T) {
+	// Long sentence with lots of word boundaries so wordwrap has plenty
+	// of places to break.
+	long := strings.Repeat("the quick brown fox jumps over the lazy dog ", 10)
+
+	// 4 nested levels of LogRecord → Body(AnyValue) → KvlistValue →
+	// KeyValue → string. Use real OTLP types so the test exercises the
+	// same render path as the user's case.
+	msg := &logsv1.LogRecord{
+		Body: &commonv1.AnyValue{Value: &commonv1.AnyValue_KvlistValue{
+			KvlistValue: &commonv1.KeyValueList{Values: []*commonv1.KeyValue{{
+				Key: "judgment.output",
+				Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_KvlistValue{
+					KvlistValue: &commonv1.KeyValueList{Values: []*commonv1.KeyValue{{
+						Key:   "summary",
+						Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: long}},
+					}}},
+				}},
+			}}},
+		}},
+	}
+
+	const width = 80
+	styles := &stripes.Styles{Indent: "  ", Width: width}
+
+	var buf bytes.Buffer
+	renderer := New(msg.ProtoReflect().Descriptor(), nil)
+	renderer(&buf, bytes.NewReader(mustMarshal(t, msg)), styles)
+
+	for i, line := range strings.Split(strings.TrimRight(buf.String(), "\n"), "\n") {
+		visible := ansi.StringWidth(line)
+		if visible > width {
+			t.Errorf("line %d width=%d > %d: %q", i, visible, width, line)
+		}
+	}
+}
+
+func mustMarshal(t *testing.T, m proto.Message) []byte {
+	t.Helper()
+	data, err := proto.Marshal(m)
+	if err != nil {
+		t.Fatalf("proto.Marshal: %v", err)
+	}
+	return data
+}
