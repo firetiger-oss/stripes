@@ -170,10 +170,10 @@ func TestFuncXPrefixAlias(t *testing.T) {
 		wantNil     bool
 	}{
 		{"application/protobuf", false},
-		{"application/x-protobuf", false},                              // alias
-		{`application/x-protobuf; messageType="foo.Bar"`, false},       // alias + params
-		{"application/json", false},                                    // direct hit unaffected
-		{"application/x-still-not-registered", true},                   // alias still doesn't invent handlers
+		{"application/x-protobuf", false},                        // alias
+		{`application/x-protobuf; messageType="foo.Bar"`, false}, // alias + params
+		{"application/json", false},                              // direct hit unaffected
+		{"application/x-still-not-registered", true},             // alias still doesn't invent handlers
 	}
 	for _, tc := range cases {
 		r := stripes.Func(tc.contentType, "")

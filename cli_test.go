@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/rogpeppe/go-internal/testscript"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
-	"github.com/rogpeppe/go-internal/testscript"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
