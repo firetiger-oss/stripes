@@ -49,6 +49,13 @@ type Styles struct {
 	// code blocks (see github.com/alecthomas/chroma/v2/styles). Empty
 	// falls back to "github-dark".
 	CodeStyle string
+
+	// Verbose toggles expanded output in renderers that have a compact
+	// default and an attribute/event-bearing detail view. Currently
+	// consulted by stripes/trace to reveal span attributes, events, and
+	// status messages under each waterfall row. Other renderers ignore
+	// it.
+	Verbose bool
 }
 
 // Clone creates a copy of the Styles struct

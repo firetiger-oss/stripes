@@ -57,6 +57,7 @@ import _ "github.com/firetiger-oss/stripes/all"
 | `text/x-source-code`             | `stripes/code`       | `New` (factory; pass chroma lexer name) |
 | `application/wasm`               | `stripes/code`       | `RenderWasm` (requires `wasm-tools`, or `wasm2wat` from WABT as fallback) |
 | `application/protobuf`           | `stripes/protobuf`   | `New` (factory; pass message descriptor) |
+| `application/vnd.opentelemetry.trace` | `stripes/trace` | `Write` / `New` (structured); `NewRenderer` / `NewJSONRenderer` (byte stream) |
 | `application/vnd.apache.parquet` | `stripes/parquet`    | `Render`                             |
 | `text/x-txtar`                   | `stripes/txtar`      | `Render` (recursive per-file dispatch) |
 | `text/plain`                     | `stripes` (root)     | `Text`, `Plain`                      |
@@ -126,6 +127,58 @@ use.
 Pass [`stripes.DefaultStyles`](https://pkg.go.dev/github.com/firetiger-oss/stripes#DefaultStyles)
 for the built-in grayscale theme, a `Clone()` to customize, or `&stripes.Styles{}`
 for unstyled output.
+
+## [stripes/trace](https://pkg.go.dev/github.com/firetiger-oss/stripes/trace)
+
+Render OpenTelemetry trace data as a terminal waterfall. Each
+`trace_id` becomes its own block: a top rule, a `Key: value`
+metadata table (`Trace ID`, `Root`, `Duration`, `Spans`, `Errors`),
+a bottom rule with embedded time-axis tick marks and labels, then
+one row per span with `tree+kind+name · duration · bar`. The bar is
+a coloured rectangle whose background is the service's hash-stable
+hue, with the bold `service.namespace/service.name` label overlaid
+at the left edge — so the bar simultaneously shows duration,
+position, and ownership. Right-edge sub-cell precision uses
+eighth-block glyphs; the left edge always snaps to a whole cell for
+cross-terminal robustness. Span names and the tree connectors are
+rendered in the terminal's default colour, keeping the focus on the
+coloured bars.
+
+```go
+import (
+    "iter"
+    "os"
+
+    "github.com/firetiger-oss/stripes"
+    "github.com/firetiger-oss/stripes/trace"
+    tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
+)
+
+func render(td *tracev1.TracesData) error {
+    return trace.Write(os.Stdout, trace.FromTracesData(td),
+        trace.WithStyles(stripes.DefaultStyles),
+        trace.WithWidth(120),
+        trace.WithVerbose(true), // expand attributes + events
+    )
+}
+```
+
+`Write` / `Format` are one-shot helpers; `New(opts...) *Formatter`
+precomputes the options for hot loops. The structured API accepts
+`iter.Seq[*tracev1.ResourceSpans]` — `FromTracesData`,
+`FromResourceSpans`, `FromScopeSpans`, and `FromSpans(serviceName,
+spans...)` adapt the common OTLP wrapper levels into that shape.
+
+For MIME-routed byte-stream use,
+[`NewRenderer`](https://pkg.go.dev/github.com/firetiger-oss/stripes/trace#NewRenderer)
+and
+[`NewJSONRenderer`](https://pkg.go.dev/github.com/firetiger-oss/stripes/trace#NewJSONRenderer)
+mirror `protobuf.New` / `protobuf.NewJSON` — they accept a message
+descriptor (TracesData / ResourceSpans / ScopeSpans / Span) and return
+a `stripes.Renderer`. The CLI's `--format=trace` flag picks them
+automatically; in `--format=auto`, a `--schema` that names an
+OpenTelemetry trace message also routes here instead of the generic
+protobuf text renderer.
 
 ## [stripes/table](https://pkg.go.dev/github.com/firetiger-oss/stripes/table)
 
@@ -236,7 +289,7 @@ When multiple files are given, each is preceded by a centered rule
 --content-type, and --schema apply to all of them.
 
 Flags:
-  -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|text|code|protobuf|parquet|txtar|wasm|table|auto (default auto)
+  -f, --format string         json|yaml|xml|html|csv|dockerfile|markdown|text|code|protobuf|trace|parquet|txtar|wasm|table|auto (default auto)
                               "table" routes CSV/TSV/JSONL/parquet through the
                               new typed-table renderer with width-fitting,
                               JSON-cell colorization, and (for parquet) schema-
@@ -259,6 +312,10 @@ Flags:
   -p, --pager string          Pager command (e.g. "less -R", "bat --plain").
                               Use --paging=never to bypass paging.
   -n, --line-numbers          Show line numbers in a left-aligned gutter.
+  -v, --verbose               Expand per-row detail (currently used by
+                              the trace format to reveal attributes,
+                              events, and status messages under each
+                              span).
 
 Pager resolution: -p flag > $PAGER > "less -R"
 Profile resolution: --profile flag > $STRIPES_PROFILE > built-in default
