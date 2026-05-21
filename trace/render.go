@@ -540,13 +540,6 @@ func writeTraceHeader(w io.Writer, t *trace, opts *Options, widths columnWidths)
 	return err
 }
 
-func plural(n int) string {
-	if n == 1 {
-		return ""
-	}
-	return "s"
-}
-
 // pickTickInterval returns a "round" time interval that produces ~6
 // ticks across dur. Round = 1, 2, or 5 × 10^n for the unit of dur.
 func pickTickInterval(dur time.Duration, barW int) time.Duration {

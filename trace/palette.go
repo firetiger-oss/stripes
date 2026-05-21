@@ -3,8 +3,6 @@ package trace
 import (
 	"fmt"
 	"time"
-
-	"charm.land/lipgloss/v2"
 )
 
 // Base HSL coordinates for service colours. The hue is derived from
@@ -108,13 +106,6 @@ func serviceColorNameAtDepth(serviceName string, depth, minDepth, maxDepth int) 
 func serviceColorAtDepth(serviceName string, depth, minDepth, maxDepth int) string {
 	h, s, l := depthLightness(serviceName, depth, minDepth, maxDepth)
 	return hslToHex(h, s, l)
-}
-
-// barFillStyle returns the foreground style for a bar at the given
-// tree depth, scaled against the service's own depth range. See
-// [serviceColorAtDepth] for the gradient formula.
-func barFillStyle(serviceName string, depth, minDepth, maxDepth int) lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(serviceColorAtDepth(serviceName, depth, minDepth, maxDepth)))
 }
 
 // hslToHex converts HSL (each component in [0, 1]) to a `#rrggbb`
