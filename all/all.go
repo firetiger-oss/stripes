@@ -26,6 +26,7 @@ import (
 	_ "github.com/firetiger-oss/stripes/markdown"
 	_ "github.com/firetiger-oss/stripes/parquet"
 	_ "github.com/firetiger-oss/stripes/protobuf"
+	_ "github.com/firetiger-oss/stripes/trace"
 	_ "github.com/firetiger-oss/stripes/txtar"
 	_ "github.com/firetiger-oss/stripes/xml"
 	_ "github.com/firetiger-oss/stripes/yaml"

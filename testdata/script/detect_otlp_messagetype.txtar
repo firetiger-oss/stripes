@@ -1,12 +1,24 @@
 # OTLP types are pre-registered in protoregistry.GlobalTypes via the
-# stripes/protobuf/otlp side-effect import baked into the CLI binary.
-# So a TracesData payload served with an "application/x-protobuf;
-# messageType=opentelemetry.proto.trace.v1.TracesData" header decodes
-# end-to-end with zero flags.
+# stripes/protobuf/otlp side-effect import baked into the CLI binary,
+# AND the stripes/trace package's auto-routing in cmd/stripes
+# recognises the OTLP trace messageType MIME parameter. So a
+# TracesData payload served with
+# "application/x-protobuf; messageType=opentelemetry.proto.trace.v1.TracesData"
+# decodes end-to-end and renders as a waterfall — no flags needed.
 exec stripes --color=never $STRIPES_TEST_HTTP_OTLP
-cmp stdout expected.txt
+stdout 'Trace:    0'
+stdout 'Root:     GET /api'
+# Service name is overlaid on the bar; the fixture has no duration
+# so the bar collapses to a single tick and the service text drops
+# out. trace-view confirmation lives in the trace package unit tests.
 
--- expected.txt --
+# Forcing --format=protobuf with an explicit --schema bypasses the
+# trace routing and falls back to the prototext renderer, so power
+# users can still inspect the wire-level contents of an OTLP payload.
+exec stripes --color=never --format=protobuf --schema=opentelemetry.proto.trace.v1.TracesData $STRIPES_TEST_HTTP_OTLP
+cmp stdout text.txt
+
+-- text.txt --
 resource_spans: {
   scope_spans: {
     spans: {

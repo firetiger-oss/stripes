@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"os/exec"
@@ -34,6 +35,7 @@ import (
 	stripescobra "github.com/firetiger-oss/stripes/cobra"
 	_ "github.com/firetiger-oss/stripes/protobuf/otlp"
 	"github.com/firetiger-oss/stripes/protobuf/schema"
+	"github.com/firetiger-oss/stripes/trace"
 	basicauth "github.com/firetiger-oss/tigerblock/secret/authn/basic"
 	bearerauth "github.com/firetiger-oss/tigerblock/secret/authn/bearer"
 	"github.com/firetiger-oss/tigerblock/storage"
@@ -60,6 +62,7 @@ FORMATS
   Source code:     code, diff, text, txtar
   Build files:     dockerfile, gomod, gosum, gowork, modulestxt
   Binary:          protobuf, wasm
+  Observability:   trace (OpenTelemetry waterfall)
   Special:         auto, table
 
 PAGING
@@ -101,6 +104,7 @@ type config struct {
 	width       int
 	pager       string
 	lineNumbers bool
+	verbose     bool
 	basicAuth   string
 	bearerToken string
 }
@@ -136,6 +140,7 @@ func main() {
 	f.IntVarP(&cfg.width, "width", "w", 0, "output width in `cols` (0 = auto-detect)")
 	f.StringVarP(&cfg.pager, "pager", "p", "", "pager `command`")
 	f.BoolVarP(&cfg.lineNumbers, "line-numbers", "n", false, "show line numbers")
+	f.BoolVarP(&cfg.verbose, "verbose", "v", false, "expand per-row detail (currently used by trace format)")
 	f.StringVar(&cfg.basicAuth, "basic-auth", "", "HTTP Basic auth (see Authentication)")
 	f.StringVar(&cfg.bearerToken, "bearer-token", "", "HTTP Bearer auth (see Authentication)")
 
@@ -183,6 +188,7 @@ func validateConfig(cfg *config) error {
 	case "protobuf":
 	case "table":
 	case "text":
+	case "trace":
 	case "txtar":
 	case "wasm":
 	case "xml":
@@ -331,12 +337,23 @@ func renderOne(sink io.Writer, name, contentTypeHint string, input io.Reader, cf
 		if cfg.format == "protobuf" && strings.HasSuffix(strings.ToLower(name), ".json") {
 			contentType = "application/protobuf+json"
 		}
+		if cfg.format == "trace" && strings.HasSuffix(strings.ToLower(name), ".json") {
+			contentType = "application/vnd.opentelemetry.trace+json"
+		}
 	}
 	if contentType == "" {
 		contentType = contentTypeHint
 	}
 	if contentType == "" {
 		contentType = stripes.Detect(name, peek)
+	}
+	// Schema-driven auto-routing: when --format=auto and either
+	// --schema or the content-type's messageType MIME parameter names
+	// an OpenTelemetry trace message, swap a generic protobuf
+	// content-type for the dedicated waterfall renderer. Keeps explicit
+	// --format=protobuf untouched so users can still get the text view.
+	if cfg.format == "auto" {
+		contentType = maybeRouteOTLPTrace(contentType, cfg.schema)
 	}
 
 	renderer := stripes.Func(contentType, cfg.schema)
@@ -394,6 +411,47 @@ func (t *trailingNewlineWriter) flush() {
 	}
 }
 
+// maybeRouteOTLPTrace inspects contentType (and optionally a CLI
+// --schema) and, when either points at an OpenTelemetry trace message
+// carried over a generic protobuf media type, rewrites the
+// content-type to application/vnd.opentelemetry.trace[+json] so
+// stripes.Func picks the waterfall renderer. The original MIME
+// parameters (notably messageType) are preserved on the rewrite so
+// the trace renderer can resolve the descriptor.
+//
+// schema is the explicit --schema flag value, consulted first; the
+// content-type's messageType parameter is the fallback signal. When
+// neither names a trace type the input contentType is returned
+// unchanged.
+func maybeRouteOTLPTrace(contentType, schema string) string {
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		mediaType = contentType
+		params = nil
+	}
+	candidate := schema
+	if candidate == "" {
+		candidate = params["messagetype"]
+	}
+	if !trace.IsTraceMessage(candidate) {
+		return contentType
+	}
+
+	var target string
+	switch mediaType {
+	case "application/protobuf", "application/x-protobuf", "":
+		target = "application/vnd.opentelemetry.trace+protobuf"
+	case "application/protobuf+json", "application/x-protobuf+json":
+		target = "application/vnd.opentelemetry.trace+json"
+	default:
+		return contentType
+	}
+	if len(params) == 0 {
+		return target
+	}
+	return mime.FormatMediaType(target, params)
+}
+
 func formatToContentType(format string) string {
 	switch format {
 	case "json":
@@ -424,6 +482,8 @@ func formatToContentType(format string) string {
 		return "text/x-source-code"
 	case "protobuf":
 		return "application/protobuf"
+	case "trace":
+		return "application/vnd.opentelemetry.trace+protobuf"
 	case "wasm":
 		return "application/wasm"
 	case "parquet":
@@ -458,11 +518,12 @@ func resolveStyles(cfg *config) (*stripes.Styles, colorprofile.Profile) {
 	}
 
 	if !enable {
-		return &stripes.Styles{Indent: "  ", Width: width}, colorprofile.NoTTY
+		return &stripes.Styles{Indent: "  ", Width: width, Verbose: cfg.verbose}, colorprofile.NoTTY
 	}
 
 	s := loadStyles(cfg)
 	s.Width = width
+	s.Verbose = cfg.verbose
 	return s, colorprofile.TrueColor
 }
 
