@@ -1,0 +1,6 @@
+Jan 15 10:23:45 mybook.local loginwindow[150]: USER_PROCESS: 150 console
+Jan 15 10:23:45 mybook.local com.apple.xpc.launchd[1] (com.apple.spotlight): Service exited with abnormal code: 1
+Jan 15 10:23:46 mybook.local Spotlight[450]: Volume at path /Users mounted, indexing
+Jan 15 10:23:47 mybook.local kernel[0]: ARPT: 1234.567890: AirPort_BrcmNIC::powerChange wake state 0
+Jan 15 10:23:48 mybook.local sandboxd[180]: deny(1) file-read-metadata /private/var/db/diagnostics
+Jan 15 10:23:49 mybook.local UserEventAgent[42]: NotificationManager: SpringBoard tried to vend notification for unmapped client

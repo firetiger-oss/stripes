@@ -33,6 +33,7 @@ import (
 	"github.com/firetiger-oss/stripes"
 	_ "github.com/firetiger-oss/stripes/all"
 	stripescobra "github.com/firetiger-oss/stripes/cobra"
+	"github.com/firetiger-oss/stripes/log"
 	_ "github.com/firetiger-oss/stripes/protobuf/otlp"
 	"github.com/firetiger-oss/stripes/protobuf/schema"
 	"github.com/firetiger-oss/stripes/trace"
@@ -62,7 +63,9 @@ FORMATS
   Source code:     code, diff, text, txtar
   Build files:     dockerfile, gomod, gosum, gowork, modulestxt
   Binary:          protobuf, wasm
-  Observability:   trace (OpenTelemetry waterfall)
+  Observability:   trace (OTel waterfall), logs (OTel table)
+  Text logs:       logfmt, jsonlog, alb-access, nginx-access,
+                   log4j, python-log, go-log, syslog, syslog-rfc5424
   Special:         auto, table
 
 PAGING
@@ -140,7 +143,7 @@ func main() {
 	f.IntVarP(&cfg.width, "width", "w", 0, "output width in `cols` (0 = auto-detect)")
 	f.StringVarP(&cfg.pager, "pager", "p", "", "pager `command`")
 	f.BoolVarP(&cfg.lineNumbers, "line-numbers", "n", false, "show line numbers")
-	f.BoolVarP(&cfg.verbose, "verbose", "v", false, "expand per-row detail (currently used by trace format)")
+	f.BoolVarP(&cfg.verbose, "verbose", "v", false, "expand per-row detail (used by trace and logs formats)")
 	f.StringVar(&cfg.basicAuth, "basic-auth", "", "HTTP Basic auth (see Authentication)")
 	f.StringVar(&cfg.bearerToken, "bearer-token", "", "HTTP Bearer auth (see Authentication)")
 
@@ -182,6 +185,16 @@ func validateConfig(cfg *config) error {
 	case "gowork":
 	case "html":
 	case "json":
+	case "jsonlog":
+	case "log4j":
+	case "logfmt":
+	case "logs":
+	case "alb-access":
+	case "nginx-access":
+	case "python-log":
+	case "go-log":
+	case "syslog":
+	case "syslog-rfc5424":
 	case "markdown":
 	case "modulestxt":
 	case "parquet":
@@ -251,7 +264,11 @@ func run(ctx context.Context, cfg *config, files []string) error {
 			}
 			defer rc.Close()
 
-			r, err := decompress(rc, info.ContentEncoding)
+			// When the server doesn't tell us how the bytes are
+			// compressed (vanilla .log.gz objects on S3 typically
+			// don't carry Content-Encoding), fall back to a
+			// recognised compression suffix on the filename.
+			r, err := decompress(rc, effectiveEncoding(file, info.ContentEncoding))
 			if err != nil {
 				return err
 			}
@@ -263,7 +280,10 @@ func run(ctx context.Context, cfg *config, files []string) error {
 				}
 				writeSeparator(sink, file, styles)
 			}
-			renderOne(sink, displayName(file), info.ContentType, r, cfg, styles)
+			// Detection sees the post-decompression filename:
+			// "foo.log.gz" → "foo.log" so the inner extension
+			// drives format selection.
+			renderOne(sink, stripEncodingSuffix(displayName(file)), info.ContentType, r, cfg, styles)
 			return nil
 		}(); err != nil {
 			_ = finish()
@@ -340,6 +360,9 @@ func renderOne(sink io.Writer, name, contentTypeHint string, input io.Reader, cf
 		if cfg.format == "trace" && strings.HasSuffix(strings.ToLower(name), ".json") {
 			contentType = "application/vnd.opentelemetry.trace+json"
 		}
+		if cfg.format == "logs" && strings.HasSuffix(strings.ToLower(name), ".json") {
+			contentType = "application/vnd.opentelemetry.logs+json"
+		}
 	}
 	if contentType == "" {
 		contentType = contentTypeHint
@@ -354,6 +377,7 @@ func renderOne(sink io.Writer, name, contentTypeHint string, input io.Reader, cf
 	// --format=protobuf untouched so users can still get the text view.
 	if cfg.format == "auto" {
 		contentType = maybeRouteOTLPTrace(contentType, cfg.schema)
+		contentType = maybeRouteOTLPLog(contentType, cfg.schema)
 	}
 
 	renderer := stripes.Func(contentType, cfg.schema)
@@ -452,6 +476,41 @@ func maybeRouteOTLPTrace(contentType, schema string) string {
 	return mime.FormatMediaType(target, params)
 }
 
+// maybeRouteOTLPLog mirrors [maybeRouteOTLPTrace] for OpenTelemetry
+// log messages: when --schema or the content-type's messageType MIME
+// parameter names an OTLP log message carried over a generic
+// protobuf media type, rewrites the content-type to
+// application/vnd.opentelemetry.logs[+json] so stripes.Func picks
+// the logs renderer.
+func maybeRouteOTLPLog(contentType, schema string) string {
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		mediaType = contentType
+		params = nil
+	}
+	candidate := schema
+	if candidate == "" {
+		candidate = params["messagetype"]
+	}
+	if !log.IsLogMessage(candidate) {
+		return contentType
+	}
+
+	var target string
+	switch mediaType {
+	case "application/protobuf", "application/x-protobuf", "":
+		target = "application/vnd.opentelemetry.logs+protobuf"
+	case "application/protobuf+json", "application/x-protobuf+json":
+		target = "application/vnd.opentelemetry.logs+json"
+	default:
+		return contentType
+	}
+	if len(params) == 0 {
+		return target
+	}
+	return mime.FormatMediaType(target, params)
+}
+
 func formatToContentType(format string) string {
 	switch format {
 	case "json":
@@ -484,6 +543,26 @@ func formatToContentType(format string) string {
 		return "application/protobuf"
 	case "trace":
 		return "application/vnd.opentelemetry.trace+protobuf"
+	case "logs":
+		return "application/vnd.opentelemetry.logs+protobuf"
+	case "logfmt":
+		return "application/vnd.logfmt"
+	case "jsonlog":
+		return "application/vnd.json-log"
+	case "alb-access":
+		return "application/vnd.amazon.alb-access-log"
+	case "nginx-access":
+		return "application/vnd.nginx-access-log"
+	case "log4j":
+		return "application/vnd.log4j"
+	case "python-log":
+		return "application/vnd.python-log"
+	case "go-log":
+		return "application/vnd.go-log"
+	case "syslog":
+		return "application/vnd.syslog"
+	case "syslog-rfc5424":
+		return "application/vnd.syslog-rfc5424"
 	case "wasm":
 		return "application/wasm"
 	case "parquet":

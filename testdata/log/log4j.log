@@ -1,0 +1,7 @@
+[2026-01-15 10:23:45,123] INFO [main] kafka.server.KafkaServer - starting
+[2026-01-15 10:23:45,247] INFO [main] kafka.server.KafkaConfig - KafkaConfig values: broker.id = 0 advertised.listeners = PLAINTEXT://localhost:9092
+[2026-01-15 10:23:45,892] INFO [SocketServer brokerId=0] kafka.network.Acceptor - Awaiting socket connections on 0.0.0.0:9092
+[2026-01-15 10:23:46,058] WARN [Controller-0-to-broker-2-send-thread] kafka.controller.RequestSendThread - Connection to node 2 (broker2.local/10.0.0.2:9092) could not be established. Broker may not be available.
+[2026-01-15 10:23:46,500] INFO [GroupCoordinator 0] kafka.coordinator.group.GroupCoordinator - Preparing to rebalance group app-consumers in state PreparingRebalance with old generation 0
+[2026-01-15 10:23:47,001] ERROR [LogManager-0] kafka.log.LogManager - Error in log cleaner thread. Shutting down log cleaner.
+[2026-01-15 10:23:47,002] ERROR [LogManager-0] kafka.log.LogManager - java.io.IOException: Disk full on /var/lib/kafka/data

@@ -180,6 +180,103 @@ automatically; in `--format=auto`, a `--schema` that names an
 OpenTelemetry trace message also routes here instead of the generic
 protobuf text renderer.
 
+## [stripes/log](https://pkg.go.dev/github.com/firetiger-oss/stripes/log)
+
+Render log data — both OpenTelemetry log batches (binary or
+protojson) and line-oriented text log formats — through one
+shared rendering pipeline. Every record produces the same shape:
+
+    yyyy/mm/dd hh:mm:ss.mmm LEVEL metadata message
+      attr1      = value
+      attr2.key1 = value
+
+Single line when there are no attrs — the per-record vertical cost
+is paid only when there's structured data to surface. Timestamps
+are normalised to the host's local time (parsed from RFC 3339,
+log4j/python comma-millisecond, Apache combined, BSD/journald,
+etc.). The 4-character `LEVEL` column is coloured by class
+(`TRAC`/`DEBU` cyan, `INFO` green, `WARN` yellow, `ERRO` red,
+`FATA` purple); formats with no level concept (BSD syslog, macOS)
+drop the column entirely. `metadata` is the format's per-line
+visual identity (HTTP access logs land on a coloured "HTTP
+status" pair with the status code class-tinted; log4j shows
+`logger[thread]`; syslog shows `tag[pid]`; python shows
+`logger:line`). Attributes are alphabetically sorted with keys
+aligned on the `=`.
+
+### OpenTelemetry logs
+
+```go
+import (
+    "iter"
+    "os"
+
+    "github.com/firetiger-oss/stripes"
+    "github.com/firetiger-oss/stripes/log"
+    logsv1 "go.opentelemetry.io/proto/otlp/logs/v1"
+)
+
+func render(ld *logsv1.LogsData) error {
+    return log.Write(os.Stdout, log.FromLogsData(ld),
+        log.WithStyles(stripes.DefaultStyles),
+        log.WithWidth(120),
+        log.WithVerbose(true), // expand attributes + trace correlation
+    )
+}
+```
+
+`Write` / `Format` are one-shot helpers; `New(opts...) *Formatter`
+precomputes the options for hot loops. The structured API accepts
+`iter.Seq[*logsv1.ResourceLogs]` — `FromLogsData`,
+`FromResourceLogs`, `FromScopeLogs`, and `FromLogRecords(serviceName,
+records...)` adapt the common OTLP wrapper levels into that shape.
+`-v` folds `trace_id`, `span_id`, and the instrumentation scope into
+the same indented attrs block.
+
+For MIME-routed byte-stream use,
+[`NewRenderer`](https://pkg.go.dev/github.com/firetiger-oss/stripes/log#NewRenderer)
+and
+[`NewJSONRenderer`](https://pkg.go.dev/github.com/firetiger-oss/stripes/log#NewJSONRenderer)
+accept a message descriptor (LogsData / ResourceLogs / ScopeLogs /
+LogRecord) and return a `stripes.Renderer`. The CLI's `--format=logs`
+flag picks them automatically; in `--format=auto`, a `--schema` that
+names an OpenTelemetry log message also routes here instead of the
+generic protobuf text renderer.
+
+### Text log formats
+
+| Format            | CLI alias         | Detection                                          |
+|-------------------|-------------------|---------------------------------------------------|
+| logfmt            | `logfmt`          | ≥2 `key=value` tokens on the first line           |
+| JSON-per-line     | `jsonlog`         | JSON object with a recognised time/level/msg key  |
+| AWS ALB access    | `alb-access`      | `^(h2\|http\|https\|ws\|wss) <iso-timestamp>`     |
+| NGINX/Apache combined | `nginx-access` | Apache common-log shape with bracketed date       |
+| log4j / Kafka     | `log4j`           | Bracketed date OR plain date with `[thread]`/`- ` |
+| Python `logging`  | `python-log`      | `YYYY-MM-DD HH:MM:SS,sss LEVEL logger:line msg`   |
+| Go stdlib `log`   | `go-log`          | `YYYY/MM/DD HH:MM:SS …`                           |
+| BSD syslog/journald/macOS | `syslog`  | `Mon DD HH:MM:SS hostname tag[pid]: …`            |
+| RFC 5424 syslog   | `syslog-rfc5424`  | `<PRI>1 <iso-timestamp> hostname app procid …`    |
+
+Detection is content-based (no format claims `.log`), so dropping
+a `.log` file with no flag uses the first matching `Detect`. The
+classifiers are registered most-specific first; logfmt and
+jsonlog register last because their predicates are the most
+permissive.
+
+**Note on JSONL auto-detection:** the Go runtime initializes
+sub-packages in alphabetical order, so the `json` renderer's
+`Detect` (which requires a parseable first JSON value) is
+consulted before `jsonlog`'s. JSON Lines payloads detect as plain
+JSON unless you pass `--format=jsonlog` explicitly.
+
+Adding a new text log format is one file: define a `LineFormat`
+value and call [`log.Register`](https://pkg.go.dev/github.com/firetiger-oss/stripes/log#Register)
+from `init()`. The registry wires it into both the byte-stream
+renderer and `stripes.Detect`. The shipped formats register in a
+deterministic priority order from the package's own `init`;
+externally-added formats run after the built-ins, so write a
+`Detect` predicate strict enough to avoid false positives.
+
 ## [stripes/table](https://pkg.go.dev/github.com/firetiger-oss/stripes/table)
 
 Render typed iterators of struct values as styled CLI tables. Columns are
