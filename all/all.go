@@ -22,6 +22,12 @@ import (
 	// a bare "<"; the xml detector also explicitly excludes HTML
 	// doctypes, so the ordering is belt-and-suspenders.
 	_ "github.com/firetiger-oss/stripes/html"
+	_ "github.com/firetiger-oss/stripes/image/bmp"
+	_ "github.com/firetiger-oss/stripes/image/gif"
+	_ "github.com/firetiger-oss/stripes/image/jpeg"
+	_ "github.com/firetiger-oss/stripes/image/png"
+	_ "github.com/firetiger-oss/stripes/image/tiff"
+	_ "github.com/firetiger-oss/stripes/image/webp"
 	_ "github.com/firetiger-oss/stripes/json"
 	_ "github.com/firetiger-oss/stripes/log"
 	_ "github.com/firetiger-oss/stripes/markdown"

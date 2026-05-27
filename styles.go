@@ -56,6 +56,15 @@ type Styles struct {
 	// status messages under each waterfall row. Other renderers ignore
 	// it.
 	Verbose bool
+
+	// SourceName carries the display name of the input being rendered
+	// (typically a filename) so renderers can include it in
+	// out-of-band protocol fields. Currently consulted by
+	// stripes/image to populate the iTerm2 inline-image protocol's
+	// name= header so terminal prompts identify the file by name
+	// instead of "Unnamed file". Empty for stdin or when the caller
+	// has no name to attribute. Other renderers ignore it.
+	SourceName string
 }
 
 // Clone creates a copy of the Styles struct

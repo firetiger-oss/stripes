@@ -4,6 +4,7 @@ go 1.25.5
 
 require (
 	charm.land/lipgloss/v2 v2.0.3
+	github.com/BourgeoisBear/rasterm v1.1.2
 	github.com/alecthomas/chroma/v2 v2.24.1
 	github.com/andybalholm/brotli v1.1.1
 	github.com/bluekeyes/go-gitdiff v0.8.1
@@ -24,6 +25,7 @@ require (
 	github.com/spf13/pflag v1.0.9
 	github.com/yuin/goldmark v1.8.2
 	go.opentelemetry.io/proto/otlp v1.10.0
+	golang.org/x/image v0.41.0
 	golang.org/x/mod v0.36.0
 	golang.org/x/net v0.53.0
 	golang.org/x/term v0.42.0
@@ -112,7 +114,7 @@ require (
 	golang.org/x/oauth2 v0.34.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
-	golang.org/x/text v0.36.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/api v0.257.0 // indirect
 	google.golang.org/genproto v0.0.0-20250603155806-513f23925822 // indirect
