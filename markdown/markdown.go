@@ -18,6 +18,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	lgtable "charm.land/lipgloss/v2/table"
+	xhtml "golang.org/x/net/html"
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/formatters"
 	chromalexers "github.com/alecthomas/chroma/v2/lexers"
@@ -193,7 +194,7 @@ func (s *streamRenderer) tryEmit(final bool) {
 	}
 
 	root := s.parser.Parse(text.NewReader(src))
-	children := renderableChildren(root)
+	children := renderableChildren(root, src)
 
 	stable := len(children) - 1
 	if final {
@@ -236,10 +237,10 @@ func (s *streamRenderer) renderFrontmatter() {
 // renderableChildren returns the top-level children of root that
 // renderMarkdownBlocks would render, in document order. Mirrors the
 // isRenderableBlock filter in renderMarkdownBlocks.
-func renderableChildren(root ast.Node) []ast.Node {
+func renderableChildren(root ast.Node, src []byte) []ast.Node {
 	var out []ast.Node
 	for n := root.FirstChild(); n != nil; n = n.NextSibling() {
-		if !isRenderableBlock(n) {
+		if !isRenderableBlock(n, src) {
 			continue
 		}
 		out = append(out, n)
@@ -315,7 +316,7 @@ type mdContext struct {
 func renderMarkdownBlocks(w io.Writer, parent ast.Node, ctx *mdContext) {
 	first := true
 	for n := parent.FirstChild(); n != nil; n = n.NextSibling() {
-		if !isRenderableBlock(n) {
+		if !isRenderableBlock(n, ctx.src) {
 			continue
 		}
 		if !first {
@@ -326,10 +327,16 @@ func renderMarkdownBlocks(w io.Writer, parent ast.Node, ctx *mdContext) {
 	}
 }
 
-func isRenderableBlock(n ast.Node) bool {
+func isRenderableBlock(n ast.Node, src []byte) bool {
 	switch n.Kind() {
-	case ast.KindHTMLBlock, ast.KindLinkReferenceDefinition:
+	case ast.KindLinkReferenceDefinition:
 		return false
+	case ast.KindHTMLBlock:
+		// HTML blocks are dropped by default, but blocks wrapping an
+		// <img> tag are kept so the image renderer can display them
+		// (e.g. the centered logo in this repo's README).
+		_, ok := firstImgSrc(n.(*ast.HTMLBlock).Lines().Value(src))
+		return ok
 	}
 	return true
 }
@@ -357,6 +364,12 @@ func renderMarkdownBlock(w io.Writer, n ast.Node, ctx *mdContext) {
 		renderList(w, n.(*ast.List), ctx)
 	case extast.KindTable:
 		renderTable(w, n, ctx)
+	case ast.KindHTMLBlock:
+		// isRenderableBlock only keeps HTML blocks that wrap an <img>;
+		// re-extract the src and route through the image renderer.
+		if src, ok := firstImgSrc(n.(*ast.HTMLBlock).Lines().Value(ctx.src)); ok {
+			tryRenderInlineImageRef(w, src, ctx)
+		}
 	default:
 		renderInlinesTo(w, n, ctx)
 	}
@@ -570,7 +583,14 @@ func paragraphImage(n ast.Node) (*ast.Image, bool) {
 // import any stripes/image/* sub-package — image renderers are
 // discovered through [stripes.Func] at call time.
 func tryRenderInlineImage(w io.Writer, img *ast.Image, ctx *mdContext) bool {
-	ref := string(img.Destination)
+	return tryRenderInlineImageRef(w, string(img.Destination), ctx)
+}
+
+// tryRenderInlineImageRef performs the actual dispatch: data-URI
+// decode, fetcher-backed resolution, content-type lookup, and renderer
+// invocation. Returns false when any step bails so the caller can fall
+// back to a textual placeholder.
+func tryRenderInlineImageRef(w io.Writer, ref string, ctx *mdContext) bool {
 	if ref == "" {
 		return false
 	}
@@ -638,6 +658,34 @@ func resolveImageRef(sourceName, ref string) string {
 		}
 	}
 	return path.Join(path.Dir(sourceName), ref)
+}
+
+// firstImgSrc scans HTML markup for the first <img> tag and returns
+// its src attribute. Used to surface images embedded in markdown HTML
+// blocks (e.g. `<p align="center"><img src="logo.png"></p>`) so the
+// image renderer can display them.
+func firstImgSrc(htmlBytes []byte) (string, bool) {
+	z := xhtml.NewTokenizer(bytes.NewReader(htmlBytes))
+	for {
+		switch z.Next() {
+		case xhtml.ErrorToken:
+			return "", false
+		case xhtml.StartTagToken, xhtml.SelfClosingTagToken:
+			tn, hasAttr := z.TagName()
+			if string(tn) != "img" || !hasAttr {
+				continue
+			}
+			for {
+				key, val, more := z.TagAttr()
+				if string(key) == "src" {
+					return string(val), true
+				}
+				if !more {
+					break
+				}
+			}
+		}
+	}
 }
 
 // decodeDataURI parses a "data:<mediatype>[;base64],<payload>" URI into
@@ -728,7 +776,7 @@ func renderList(w io.Writer, list *ast.List, ctx *mdContext) {
 		first = false
 
 		var marker string
-		if itemHasTaskCheckbox(item) {
+		if itemHasTaskCheckbox(item, ctx.src) {
 			marker = ""
 		} else if ordered {
 			marker = fmt.Sprintf("%d. ", num)
@@ -774,7 +822,7 @@ func renderList(w io.Writer, list *ast.List, ctx *mdContext) {
 func renderListItemBody(w io.Writer, item ast.Node, ctx *mdContext) {
 	first := true
 	for child := item.FirstChild(); child != nil; child = child.NextSibling() {
-		if !isRenderableBlock(child) {
+		if !isRenderableBlock(child, ctx.src) {
 			continue
 		}
 		if !first {
@@ -811,9 +859,9 @@ func renderTaskCheckbox(w io.Writer, cb *extast.TaskCheckBox, ctx *mdContext) {
 	}
 }
 
-func itemHasTaskCheckbox(item ast.Node) bool {
+func itemHasTaskCheckbox(item ast.Node, src []byte) bool {
 	for child := item.FirstChild(); child != nil; child = child.NextSibling() {
-		if !isRenderableBlock(child) {
+		if !isRenderableBlock(child, src) {
 			continue
 		}
 		if _, ok := child.(*extast.TaskCheckBox); ok {

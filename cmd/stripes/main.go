@@ -213,6 +213,14 @@ func validateConfig(cfg *config) error {
 }
 
 func run(ctx context.Context, cfg *config, files []string) error {
+	// less -R doesn't preserve the kitty / iTerm2 inline-image escapes,
+	// so auto-paging would turn the output into garbled base64 ASCII.
+	// Detect images by filename and downgrade auto → never; explicit
+	// --paging=always still spawns the pager on user request.
+	if cfg.paging == "auto" && anyImageInput(cfg, files) {
+		cfg.paging = "never"
+	}
+
 	styles, profile := resolveStyles(cfg)
 	rawSink, finish := openSink(cfg, len(files))
 	sink := &colorprofile.Writer{Forward: rawSink, Profile: profile}
@@ -291,6 +299,25 @@ func run(ctx context.Context, cfg *config, files []string) error {
 		}
 	}
 	return finish()
+}
+
+// anyImageInput reports whether any file in files (or the explicit
+// --content-type override) resolves to an image/* MIME type by filename
+// alone. Used by run() to disable auto-paging before openSink, because
+// pagers like "less -R" don't preserve kitty / iTerm2 graphics-protocol
+// escapes. stdin (no files) isn't checked here — peeking the stream
+// would race with renderOne; users who know they're piping an image can
+// pass --paging=never explicitly.
+func anyImageInput(cfg *config, files []string) bool {
+	if strings.HasPrefix(cfg.contentType, "image/") {
+		return true
+	}
+	for _, f := range files {
+		if strings.HasPrefix(stripes.Detect(displayName(f), nil), "image/") {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveSchema verifies that schema (a protobuf full message name)

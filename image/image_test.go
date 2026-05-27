@@ -123,6 +123,43 @@ func TestItermUsesSourceName(t *testing.T) {
 	}
 }
 
+func TestSmallImageRendersAtNativeSize(t *testing.T) {
+	// An image whose pixel width comfortably fits inside the terminal
+	// should not have a c= constraint added — it renders at native pixel
+	// size, left-aligned, instead of being stretched across the terminal.
+	resetTerminalEnv(t)
+	t.Setenv("KITTY_WINDOW_ID", "1")
+
+	styles := stripes.DefaultStyles.Clone()
+	styles.Width = 200 // very wide terminal compared to a 4×4 image
+
+	var buf bytes.Buffer
+	render := stripesimage.NewRenderer("image/png")
+	render(&buf, bytes.NewReader(makePNG(t, 4, 4)), styles)
+
+	if bytes.Contains(buf.Bytes(), []byte(",c=")) || bytes.Contains(buf.Bytes(), []byte("c=200")) {
+		t.Fatalf("kitty header carries width constraint for small image: %q", clipHeader(buf.Bytes()))
+	}
+}
+
+func TestLargeImageScalesToFitTerminal(t *testing.T) {
+	// An image whose pixel width exceeds the terminal cell budget must
+	// be downscaled via the c= constraint so it fits the viewport.
+	resetTerminalEnv(t)
+	t.Setenv("KITTY_WINDOW_ID", "1")
+
+	styles := stripes.DefaultStyles.Clone()
+	styles.Width = 80 // narrow terminal vs. a 4000-pixel-wide image
+
+	var buf bytes.Buffer
+	render := stripesimage.NewRenderer("image/png")
+	render(&buf, bytes.NewReader(makePNG(t, 4000, 100)), styles)
+
+	if !bytes.Contains(buf.Bytes(), []byte("c=80")) {
+		t.Fatalf("kitty header missing c=80 width constraint: %q", clipHeader(buf.Bytes()))
+	}
+}
+
 func TestColorDisabledForcesFallback(t *testing.T) {
 	// Even with KITTY_WINDOW_ID set, zero-value styles (no ANSI) must
 	// take the fallback path so --color=never users never see escape

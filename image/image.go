@@ -37,33 +37,53 @@ func NewRenderer(contentType string) stripes.Renderer {
 			writeFallback(w, label, 0, 0, len(data), styles)
 			return
 		}
+		cfg, _, _ := image.DecodeConfig(bytes.NewReader(data))
 		if stripes.IsANSIEnabled(styles) {
-			width := uint32(0)
-			if styles.Width > 0 {
-				width = uint32(styles.Width)
-			}
+			cells := scaleToFit(cfg.Width, styles.Width)
 			name := path.Base(styles.SourceName)
 			if name == "" || name == "." || name == "/" {
 				name = defaultName
 			}
 			switch {
 			case rasterm.IsKittyCapable():
-				if writeKitty(w, data, isPNG, width) == nil {
+				if writeKitty(w, data, isPNG, cells) == nil {
 					return
 				}
 			case rasterm.IsItermCapable():
-				if writeIterm(w, data, name, width) == nil {
+				if writeIterm(w, data, name, cells) == nil {
 					return
 				}
 			}
 		}
-		cfg, _, _ := image.DecodeConfig(bytes.NewReader(data))
 		writeFallback(w, label, cfg.Width, cfg.Height, len(data), styles)
 	}
 }
 
-func writeKitty(w io.Writer, data []byte, isPNG bool, width uint32) error {
-	opts := rasterm.KittyImgOpts{DstCols: width}
+// scaleToFit returns the cell-width constraint to pass to the kitty /
+// iTerm2 protocols. Returns 0 (no constraint, native pixel size) when
+// the image is small enough that fitting it to terminal columns would
+// upscale it — the goal is to render small images left-aligned at
+// their natural size rather than stretching them across the terminal.
+// Returns termCells when the image is too wide so it scales down to
+// fit.
+//
+// Cell pixel size is terminal- and font-dependent; ~10–12 px wide is
+// typical. The function uses 14 to err on the side of "fits natively"
+// — undershooting the cell count is safe because the protocol scales
+// down rather than wrapping.
+func scaleToFit(imgWidthPx, termCells int) uint32 {
+	if termCells <= 0 || imgWidthPx <= 0 {
+		return 0
+	}
+	const cellPxApprox = 14
+	if imgWidthPx <= termCells*cellPxApprox {
+		return 0
+	}
+	return uint32(termCells)
+}
+
+func writeKitty(w io.Writer, data []byte, isPNG bool, cells uint32) error {
+	opts := rasterm.KittyImgOpts{DstCols: cells}
 	if isPNG {
 		return rasterm.KittyCopyPNGInline(w, bytes.NewReader(data), opts)
 	}
@@ -74,14 +94,14 @@ func writeKitty(w io.Writer, data []byte, isPNG bool, width uint32) error {
 	return rasterm.KittyWriteImage(w, img, opts)
 }
 
-func writeIterm(w io.Writer, data []byte, name string, width uint32) error {
+func writeIterm(w io.Writer, data []byte, name string, cells uint32) error {
 	opts := rasterm.ItermImgOpts{
 		DisplayInline: true,
 		Size:          int64(len(data)),
 		Name:          name,
 	}
-	if width > 0 {
-		opts.Width = fmt.Sprintf("%d", width)
+	if cells > 0 {
+		opts.Width = fmt.Sprintf("%d", cells)
 	}
 	return rasterm.ItermCopyFileInlineWithOptions(w, bytes.NewReader(data), opts)
 }
