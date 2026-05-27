@@ -41,6 +41,8 @@ func init() {
 			return mime.FormatMediaType("text/x-source-code", map[string]string{"lang": "wat"}), true
 		case ".tfvars":
 			return mime.FormatMediaType("text/x-source-code", map[string]string{"lang": "terraform"}), true
+		case ".rules":
+			return mime.FormatMediaType("text/x-source-code", map[string]string{"lang": "rules"}), true
 		}
 		if lex := chromalexers.Match(base); lex != nil {
 			return mime.FormatMediaType("text/x-source-code", map[string]string{"lang": lex.Config().Name}), true
@@ -103,6 +105,8 @@ func resolveLexer(lang string, src []byte) chroma.Lexer {
 		switch strings.ToLower(lang) {
 		case "protocol buffer", "protobuf", "proto":
 			return protoLexer
+		case "go ssa rules", "go-ssa-rules", "rules":
+			return rulesLexer
 		}
 		if lex := chromalexers.Get(lang); lex != nil {
 			return lex
