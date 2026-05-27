@@ -130,7 +130,8 @@ func TestFunc(t *testing.T) {
 			name:        "Image content type",
 			contentType: "image/png",
 			schemaURL:   "",
-			expectNil:   true,
+			expectNil:   false,
+			expectType:  "Image",
 		},
 		{
 			name:        "JSON with charset parameter",

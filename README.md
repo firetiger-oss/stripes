@@ -60,6 +60,12 @@ import _ "github.com/firetiger-oss/stripes/all"
 | `application/vnd.opentelemetry.trace` | `stripes/trace` | `Write` / `New` (structured); `NewRenderer` / `NewJSONRenderer` (byte stream) |
 | `application/vnd.apache.parquet` | `stripes/parquet`    | `Render`                             |
 | `text/x-txtar`                   | `stripes/txtar`      | `Render` (recursive per-file dispatch) |
+| `image/png`                      | `stripes/image/png`  | inline rendering via [rasterm](https://github.com/BourgeoisBear/rasterm) (kitty / iTerm2) |
+| `image/jpeg`                     | `stripes/image/jpeg` | inline rendering via rasterm |
+| `image/gif`                      | `stripes/image/gif`  | inline rendering via rasterm |
+| `image/webp`                     | `stripes/image/webp` | inline rendering via rasterm |
+| `image/bmp`                      | `stripes/image/bmp`  | inline rendering via rasterm |
+| `image/tiff`                     | `stripes/image/tiff` | inline rendering via rasterm |
 | `text/plain`                     | `stripes` (root)     | `Text`, `Plain`                      |
 
 The plain renderers share the
@@ -83,6 +89,15 @@ features.
 Terraform `.tf` and `.hcl` files are picked up by chroma's built-in
 filename match; `.tfvars` is routed to the same `terraform` lexer.
 `.tfstate` and `.tfstate.backup` are routed to the JSON renderer.
+
+The image renderers emit kitty graphics protocol escapes when
+`$KITTY_WINDOW_ID` is set or `$TERM_PROGRAM` is `wezterm` / `ghostty`,
+and iTerm2 inline-image escapes when `$LC_TERMINAL` is `iterm2` or
+`$TERM_PROGRAM` is `wezterm` / `rio`. Terminals that advertise neither
+get a styled placeholder line (`[image: PNG 1920×1080, 245 KiB]
+(terminal does not support inline images)`). `less -R` does not preserve
+the graphics escapes, so use `--paging=never` when displaying images
+through the CLI.
 
 ### [stripes.Func](https://pkg.go.dev/github.com/firetiger-oss/stripes#Func)
 

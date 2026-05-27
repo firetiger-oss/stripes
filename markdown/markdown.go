@@ -5,10 +5,14 @@
 package markdown
 
 import (
+	"bufio"
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"math"
+	"net/url"
+	"path"
 	"sort"
 	"strings"
 
@@ -520,6 +524,11 @@ func imageOnlyLink(l *ast.Link) (*ast.Image, bool) {
 }
 
 func renderParagraph(w io.Writer, n ast.Node, ctx *mdContext) {
+	if img, ok := paragraphImage(n); ok {
+		if tryRenderInlineImage(w, img, ctx) {
+			return
+		}
+	}
 	var buf bytes.Buffer
 	renderInlinesTo(&buf, n, ctx)
 	out := buf.String()
@@ -527,6 +536,153 @@ func renderParagraph(w io.Writer, n ast.Node, ctx *mdContext) {
 		out = ansi.Wrap(out, ctx.width, "")
 	}
 	io.WriteString(w, out)
+}
+
+// paragraphImage reports the embedded *ast.Image when the paragraph
+// contains exactly one renderable child and that child is either an
+// image or a link whose only child is an image (the badge pattern
+// detected by imageOnlyLink). Other shapes return (nil, false) so the
+// caller renders the paragraph as normal flowing text.
+//
+// Block-only images get inline graphics-protocol rendering. Mid-text
+// images stay as the textual placeholder because the kitty/iTerm2
+// inline image escapes move the cursor below the image, which would
+// corrupt surrounding paragraph text.
+func paragraphImage(n ast.Node) (*ast.Image, bool) {
+	c := n.FirstChild()
+	if c == nil || c.NextSibling() != nil {
+		return nil, false
+	}
+	switch v := c.(type) {
+	case *ast.Image:
+		return v, true
+	case *ast.Link:
+		return imageOnlyLink(v)
+	}
+	return nil, false
+}
+
+// tryRenderInlineImage attempts to render img inline using a renderer
+// resolved from the dynamic format registry. Returns true when the
+// image was emitted (the caller should not produce a placeholder),
+// false when any step bails so the caller falls back to the existing
+// "[image] alt (dest)" placeholder path. The markdown package does not
+// import any stripes/image/* sub-package — image renderers are
+// discovered through [stripes.Func] at call time.
+func tryRenderInlineImage(w io.Writer, img *ast.Image, ctx *mdContext) bool {
+	ref := string(img.Destination)
+	if ref == "" {
+		return false
+	}
+
+	var (
+		body        io.Reader
+		contentType string
+		closer      io.Closer
+	)
+
+	if strings.HasPrefix(ref, "data:") {
+		data, ct, ok := decodeDataURI(ref)
+		if !ok {
+			return false
+		}
+		body = bytes.NewReader(data)
+		contentType = ct
+	} else {
+		if ctx.styles.ImageFetcher == nil {
+			return false
+		}
+		resolved := resolveImageRef(ctx.styles.SourceName, ref)
+		rc, ct, err := ctx.styles.ImageFetcher(resolved)
+		if err != nil || rc == nil {
+			return false
+		}
+		body = rc
+		closer = rc
+		contentType = ct
+	}
+	if closer != nil {
+		defer closer.Close()
+	}
+
+	br := bufio.NewReader(body)
+	if contentType == "" {
+		peek, _ := br.Peek(512)
+		contentType = stripes.Detect(path.Base(ref), peek)
+	}
+	renderer := stripes.Func(contentType, "")
+	if renderer == nil {
+		return false
+	}
+	renderer(w, br, ctx.styles)
+	return true
+}
+
+// resolveImageRef joins a markdown image reference against the source
+// file's display name. URL refs (with a scheme) and absolute refs
+// (leading "/" or with a scheme) pass through unchanged. URL-shaped
+// SourceName values (http://…, s3://…) use net/url resolution so host
+// information is preserved; plain filesystem paths use path.Join
+// semantics so a base of "README.md" resolves "assets/foo.png" to
+// "assets/foo.png" rather than "/assets/foo.png".
+func resolveImageRef(sourceName, ref string) string {
+	if sourceName == "" {
+		return ref
+	}
+	if strings.HasPrefix(ref, "/") || strings.Contains(ref, "://") {
+		return ref
+	}
+	if base, err := url.Parse(sourceName); err == nil && base.Scheme != "" {
+		if target, err := url.Parse(ref); err == nil {
+			return base.ResolveReference(target).String()
+		}
+	}
+	return path.Join(path.Dir(sourceName), ref)
+}
+
+// decodeDataURI parses a "data:<mediatype>[;base64],<payload>" URI into
+// the decoded bytes and content type. Returns ok=false on any malformed
+// input — the caller falls back to placeholder rendering.
+func decodeDataURI(ref string) (data []byte, contentType string, ok bool) {
+	meta, payload, found := strings.Cut(ref[len("data:"):], ",")
+	if !found {
+		return nil, "", false
+	}
+	contentType, isBase64 := parseDataURIMeta(meta)
+	if isBase64 {
+		decoded, err := base64.StdEncoding.DecodeString(payload)
+		if err != nil {
+			return nil, "", false
+		}
+		return decoded, contentType, true
+	}
+	unescaped, err := url.QueryUnescape(payload)
+	if err != nil {
+		return nil, "", false
+	}
+	return []byte(unescaped), contentType, true
+}
+
+// parseDataURIMeta splits the metadata segment of a data: URI into a
+// content type and a base64 flag. RFC 2397 specifies parameters
+// separated by ";"; the literal token ";base64" is the only sentinel
+// that affects decoding here.
+func parseDataURIMeta(meta string) (contentType string, isBase64 bool) {
+	contentType = "text/plain"
+	if meta == "" {
+		return contentType, false
+	}
+	parts := strings.Split(meta, ";")
+	if parts[0] != "" && !strings.Contains(parts[0], "=") {
+		contentType = parts[0]
+		parts = parts[1:]
+	}
+	for _, p := range parts {
+		if p == "base64" {
+			isBase64 = true
+		}
+	}
+	return contentType, isBase64
 }
 
 func renderBlockquote(w io.Writer, n ast.Node, ctx *mdContext) {
