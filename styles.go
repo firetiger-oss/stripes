@@ -65,14 +65,6 @@ type Styles struct {
 	// instead of "Unnamed file". Empty for stdin or when the caller
 	// has no name to attribute. Other renderers ignore it.
 	SourceName string
-
-	// ImageFetcher resolves a markdown image reference to a stream of
-	// bytes plus a content type. It is called by stripes/markdown when
-	// an image-only paragraph is encountered and the reference is not
-	// a data: URI. nil disables remote-image rendering — non-data
-	// references fall back to the textual "[image] alt (dest)"
-	// placeholder. Callers must close the returned reader.
-	ImageFetcher func(ref string) (io.ReadCloser, string, error)
 }
 
 // Clone creates a copy of the Styles struct

@@ -260,7 +260,7 @@ func run(ctx context.Context, cfg *config, files []string) error {
 	}
 
 	if len(files) == 0 {
-		renderOne(ctx, sink, "", "", os.Stdin, cfg, styles)
+		renderOne(sink, "", "", os.Stdin, cfg, styles)
 		return finish()
 	}
 
@@ -291,7 +291,7 @@ func run(ctx context.Context, cfg *config, files []string) error {
 			// Detection sees the post-decompression filename:
 			// "foo.log.gz" → "foo.log" so the inner extension
 			// drives format selection.
-			renderOne(ctx, sink, stripEncodingSuffix(displayName(file)), info.ContentType, r, cfg, styles)
+			renderOne(sink, stripEncodingSuffix(displayName(file)), info.ContentType, r, cfg, styles)
 			return nil
 		}(); err != nil {
 			_ = finish()
@@ -358,23 +358,15 @@ func displayName(arg string) string {
 // carries a server-supplied Content-Type (e.g. from tigerblock storage
 // metadata or an HTTP response header) and is consulted between the
 // user-supplied --format and the filename/sniff cascade.
-func renderOne(ctx context.Context, sink io.Writer, name, contentTypeHint string, input io.Reader, cfg *config, styles *stripes.Styles) {
+func renderOne(sink io.Writer, name, contentTypeHint string, input io.Reader, cfg *config, styles *stripes.Styles) {
 	br := bufio.NewReader(input)
 	peek, _ := br.Peek(512)
 
 	// Attribute the input on a per-call clone so the image renderer can
-	// populate the iTerm2 inline-image name= header and the markdown
-	// renderer can fetch image references through tigerblock storage;
-	// the shared styles pointer is left untouched.
+	// populate the iTerm2 inline-image name= header; the shared styles
+	// pointer is left untouched.
 	styles = styles.Clone()
 	styles.SourceName = name
-	styles.ImageFetcher = func(ref string) (io.ReadCloser, string, error) {
-		rc, info, err := storage.GetObject(ctx, ref)
-		if err != nil {
-			return nil, "", err
-		}
-		return rc, info.ContentType, nil
-	}
 
 	// --format table short-circuits the content-type dispatch entirely:
 	// it routes row-oriented inputs (CSV/TSV/JSONL) through a dedicated

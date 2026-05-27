@@ -5,20 +5,15 @@
 package markdown
 
 import (
-	"bufio"
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"math"
-	"net/url"
-	"path"
 	"sort"
 	"strings"
 
 	"charm.land/lipgloss/v2"
 	lgtable "charm.land/lipgloss/v2/table"
-	xhtml "golang.org/x/net/html"
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/formatters"
 	chromalexers "github.com/alecthomas/chroma/v2/lexers"
@@ -194,7 +189,7 @@ func (s *streamRenderer) tryEmit(final bool) {
 	}
 
 	root := s.parser.Parse(text.NewReader(src))
-	children := renderableChildren(root, src)
+	children := renderableChildren(root)
 
 	stable := len(children) - 1
 	if final {
@@ -237,10 +232,10 @@ func (s *streamRenderer) renderFrontmatter() {
 // renderableChildren returns the top-level children of root that
 // renderMarkdownBlocks would render, in document order. Mirrors the
 // isRenderableBlock filter in renderMarkdownBlocks.
-func renderableChildren(root ast.Node, src []byte) []ast.Node {
+func renderableChildren(root ast.Node) []ast.Node {
 	var out []ast.Node
 	for n := root.FirstChild(); n != nil; n = n.NextSibling() {
-		if !isRenderableBlock(n, src) {
+		if !isRenderableBlock(n) {
 			continue
 		}
 		out = append(out, n)
@@ -316,7 +311,7 @@ type mdContext struct {
 func renderMarkdownBlocks(w io.Writer, parent ast.Node, ctx *mdContext) {
 	first := true
 	for n := parent.FirstChild(); n != nil; n = n.NextSibling() {
-		if !isRenderableBlock(n, ctx.src) {
+		if !isRenderableBlock(n) {
 			continue
 		}
 		if !first {
@@ -327,16 +322,10 @@ func renderMarkdownBlocks(w io.Writer, parent ast.Node, ctx *mdContext) {
 	}
 }
 
-func isRenderableBlock(n ast.Node, src []byte) bool {
+func isRenderableBlock(n ast.Node) bool {
 	switch n.Kind() {
-	case ast.KindLinkReferenceDefinition:
+	case ast.KindHTMLBlock, ast.KindLinkReferenceDefinition:
 		return false
-	case ast.KindHTMLBlock:
-		// HTML blocks are dropped by default, but blocks wrapping an
-		// <img> tag are kept so the image renderer can display them
-		// (e.g. the centered logo in this repo's README).
-		_, ok := firstImgSrc(n.(*ast.HTMLBlock).Lines().Value(src))
-		return ok
 	}
 	return true
 }
@@ -364,12 +353,6 @@ func renderMarkdownBlock(w io.Writer, n ast.Node, ctx *mdContext) {
 		renderList(w, n.(*ast.List), ctx)
 	case extast.KindTable:
 		renderTable(w, n, ctx)
-	case ast.KindHTMLBlock:
-		// isRenderableBlock only keeps HTML blocks that wrap an <img>;
-		// re-extract the src and route through the image renderer.
-		if src, ok := firstImgSrc(n.(*ast.HTMLBlock).Lines().Value(ctx.src)); ok {
-			tryRenderInlineImageRef(w, src, ctx)
-		}
 	default:
 		renderInlinesTo(w, n, ctx)
 	}
@@ -537,11 +520,6 @@ func imageOnlyLink(l *ast.Link) (*ast.Image, bool) {
 }
 
 func renderParagraph(w io.Writer, n ast.Node, ctx *mdContext) {
-	if img, ok := paragraphImage(n); ok {
-		if tryRenderInlineImage(w, img, ctx) {
-			return
-		}
-	}
 	var buf bytes.Buffer
 	renderInlinesTo(&buf, n, ctx)
 	out := buf.String()
@@ -549,188 +527,6 @@ func renderParagraph(w io.Writer, n ast.Node, ctx *mdContext) {
 		out = ansi.Wrap(out, ctx.width, "")
 	}
 	io.WriteString(w, out)
-}
-
-// paragraphImage reports the embedded *ast.Image when the paragraph
-// contains exactly one renderable child and that child is either an
-// image or a link whose only child is an image (the badge pattern
-// detected by imageOnlyLink). Other shapes return (nil, false) so the
-// caller renders the paragraph as normal flowing text.
-//
-// Block-only images get inline graphics-protocol rendering. Mid-text
-// images stay as the textual placeholder because the kitty/iTerm2
-// inline image escapes move the cursor below the image, which would
-// corrupt surrounding paragraph text.
-func paragraphImage(n ast.Node) (*ast.Image, bool) {
-	c := n.FirstChild()
-	if c == nil || c.NextSibling() != nil {
-		return nil, false
-	}
-	switch v := c.(type) {
-	case *ast.Image:
-		return v, true
-	case *ast.Link:
-		return imageOnlyLink(v)
-	}
-	return nil, false
-}
-
-// tryRenderInlineImage attempts to render img inline using a renderer
-// resolved from the dynamic format registry. Returns true when the
-// image was emitted (the caller should not produce a placeholder),
-// false when any step bails so the caller falls back to the existing
-// "[image] alt (dest)" placeholder path. The markdown package does not
-// import any stripes/image/* sub-package — image renderers are
-// discovered through [stripes.Func] at call time.
-func tryRenderInlineImage(w io.Writer, img *ast.Image, ctx *mdContext) bool {
-	return tryRenderInlineImageRef(w, string(img.Destination), ctx)
-}
-
-// tryRenderInlineImageRef performs the actual dispatch: data-URI
-// decode, fetcher-backed resolution, content-type lookup, and renderer
-// invocation. Returns false when any step bails so the caller can fall
-// back to a textual placeholder.
-func tryRenderInlineImageRef(w io.Writer, ref string, ctx *mdContext) bool {
-	if ref == "" {
-		return false
-	}
-
-	var (
-		body        io.Reader
-		contentType string
-		closer      io.Closer
-	)
-
-	if strings.HasPrefix(ref, "data:") {
-		data, ct, ok := decodeDataURI(ref)
-		if !ok {
-			return false
-		}
-		body = bytes.NewReader(data)
-		contentType = ct
-	} else {
-		if ctx.styles.ImageFetcher == nil {
-			return false
-		}
-		resolved := resolveImageRef(ctx.styles.SourceName, ref)
-		rc, ct, err := ctx.styles.ImageFetcher(resolved)
-		if err != nil || rc == nil {
-			return false
-		}
-		body = rc
-		closer = rc
-		contentType = ct
-	}
-	if closer != nil {
-		defer closer.Close()
-	}
-
-	br := bufio.NewReader(body)
-	if contentType == "" {
-		peek, _ := br.Peek(512)
-		contentType = stripes.Detect(path.Base(ref), peek)
-	}
-	renderer := stripes.Func(contentType, "")
-	if renderer == nil {
-		return false
-	}
-	renderer(w, br, ctx.styles)
-	return true
-}
-
-// resolveImageRef joins a markdown image reference against the source
-// file's display name. URL refs (with a scheme) and absolute refs
-// (leading "/" or with a scheme) pass through unchanged. URL-shaped
-// SourceName values (http://…, s3://…) use net/url resolution so host
-// information is preserved; plain filesystem paths use path.Join
-// semantics so a base of "README.md" resolves "assets/foo.png" to
-// "assets/foo.png" rather than "/assets/foo.png".
-func resolveImageRef(sourceName, ref string) string {
-	if sourceName == "" {
-		return ref
-	}
-	if strings.HasPrefix(ref, "/") || strings.Contains(ref, "://") {
-		return ref
-	}
-	if base, err := url.Parse(sourceName); err == nil && base.Scheme != "" {
-		if target, err := url.Parse(ref); err == nil {
-			return base.ResolveReference(target).String()
-		}
-	}
-	return path.Join(path.Dir(sourceName), ref)
-}
-
-// firstImgSrc scans HTML markup for the first <img> tag and returns
-// its src attribute. Used to surface images embedded in markdown HTML
-// blocks (e.g. `<p align="center"><img src="logo.png"></p>`) so the
-// image renderer can display them.
-func firstImgSrc(htmlBytes []byte) (string, bool) {
-	z := xhtml.NewTokenizer(bytes.NewReader(htmlBytes))
-	for {
-		switch z.Next() {
-		case xhtml.ErrorToken:
-			return "", false
-		case xhtml.StartTagToken, xhtml.SelfClosingTagToken:
-			tn, hasAttr := z.TagName()
-			if string(tn) != "img" || !hasAttr {
-				continue
-			}
-			for {
-				key, val, more := z.TagAttr()
-				if string(key) == "src" {
-					return string(val), true
-				}
-				if !more {
-					break
-				}
-			}
-		}
-	}
-}
-
-// decodeDataURI parses a "data:<mediatype>[;base64],<payload>" URI into
-// the decoded bytes and content type. Returns ok=false on any malformed
-// input — the caller falls back to placeholder rendering.
-func decodeDataURI(ref string) (data []byte, contentType string, ok bool) {
-	meta, payload, found := strings.Cut(ref[len("data:"):], ",")
-	if !found {
-		return nil, "", false
-	}
-	contentType, isBase64 := parseDataURIMeta(meta)
-	if isBase64 {
-		decoded, err := base64.StdEncoding.DecodeString(payload)
-		if err != nil {
-			return nil, "", false
-		}
-		return decoded, contentType, true
-	}
-	unescaped, err := url.QueryUnescape(payload)
-	if err != nil {
-		return nil, "", false
-	}
-	return []byte(unescaped), contentType, true
-}
-
-// parseDataURIMeta splits the metadata segment of a data: URI into a
-// content type and a base64 flag. RFC 2397 specifies parameters
-// separated by ";"; the literal token ";base64" is the only sentinel
-// that affects decoding here.
-func parseDataURIMeta(meta string) (contentType string, isBase64 bool) {
-	contentType = "text/plain"
-	if meta == "" {
-		return contentType, false
-	}
-	parts := strings.Split(meta, ";")
-	if parts[0] != "" && !strings.Contains(parts[0], "=") {
-		contentType = parts[0]
-		parts = parts[1:]
-	}
-	for _, p := range parts {
-		if p == "base64" {
-			isBase64 = true
-		}
-	}
-	return contentType, isBase64
 }
 
 func renderBlockquote(w io.Writer, n ast.Node, ctx *mdContext) {
@@ -776,7 +572,7 @@ func renderList(w io.Writer, list *ast.List, ctx *mdContext) {
 		first = false
 
 		var marker string
-		if itemHasTaskCheckbox(item, ctx.src) {
+		if itemHasTaskCheckbox(item) {
 			marker = ""
 		} else if ordered {
 			marker = fmt.Sprintf("%d. ", num)
@@ -822,7 +618,7 @@ func renderList(w io.Writer, list *ast.List, ctx *mdContext) {
 func renderListItemBody(w io.Writer, item ast.Node, ctx *mdContext) {
 	first := true
 	for child := item.FirstChild(); child != nil; child = child.NextSibling() {
-		if !isRenderableBlock(child, ctx.src) {
+		if !isRenderableBlock(child) {
 			continue
 		}
 		if !first {
@@ -859,9 +655,9 @@ func renderTaskCheckbox(w io.Writer, cb *extast.TaskCheckBox, ctx *mdContext) {
 	}
 }
 
-func itemHasTaskCheckbox(item ast.Node, src []byte) bool {
+func itemHasTaskCheckbox(item ast.Node) bool {
 	for child := item.FirstChild(); child != nil; child = child.NextSibling() {
-		if !isRenderableBlock(child, src) {
+		if !isRenderableBlock(child) {
 			continue
 		}
 		if _, ok := child.(*extast.TaskCheckBox); ok {
