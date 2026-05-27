@@ -1,0 +1,6 @@
+Jan 15 10:23:45 myhost systemd[1]: Started example.service.
+Jan 15 10:23:46 myhost sshd[42]: Accepted publickey for jdoe from 10.0.0.1 port 54321 ssh2
+Jan 15 10:23:46 myhost sudo[123]: jdoe : TTY=pts/0 ; PWD=/home/jdoe ; USER=root ; COMMAND=/usr/bin/apt update
+Jan 15 10:23:47 myhost kernel: [12345.678] CPU0: thermal throttling
+Jan 15 10:23:47 myhost dockerd: time="2026-01-15T10:23:47Z" level=warning msg="cleanup of container abc123 failed"
+Jan 15 10:23:48 myhost cron[256]: (root) CMD (/usr/local/bin/backup.sh)

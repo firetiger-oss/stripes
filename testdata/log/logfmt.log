@@ -1,0 +1,7 @@
+time=2026-01-15T10:23:45.123Z level=INFO msg="server starting" addr=:8080
+time=2026-01-15T10:23:45.892Z level=INFO msg="db connection established" host=db-primary.local port=5432
+time=2026-01-15T10:23:46.014Z level=DEBUG msg="request received" method=GET path=/api/v1/users user_id=42
+time=2026-01-15T10:23:46.058Z level=WARN msg="slow query" sql="SELECT * FROM users WHERE …" duration_ms=412
+time=2026-01-15T10:23:46.063Z level=INFO msg="request complete" status=200 bytes=2048 duration_ms=49
+time=2026-01-15T10:23:47.001Z level=ERROR msg="db connection lost" host=db-primary.local error="connection reset by peer" attempt=1
+time=2026-01-15T10:23:47.500Z level=INFO msg="reconnect succeeded" host=db-replica.local attempt=2

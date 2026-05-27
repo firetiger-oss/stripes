@@ -1,0 +1,4 @@
+<134>1 2003-10-11T22:14:15.003Z mymachine.example.com evntslog - ID47 [exampleSDID@32473 iut="3" eventSource="Application" eventID="1011"] An application event log entry...
+<165>1 2003-08-24T05:14:15.000003-07:00 192.0.2.1 myproc 8710 - - %% It's time to make the do-nuts.
+<13>1 2026-01-15T10:23:45.123Z host1.example.com myapp 4242 ID01 - User alice logged in
+<11>1 2026-01-15T10:23:47.001Z host1.example.com myapp 4242 ID09 [origin software="myapp" swVersion="1.2.3"] db connection lost

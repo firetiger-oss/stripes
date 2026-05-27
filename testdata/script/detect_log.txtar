@@ -1,0 +1,84 @@
+# Text log formats register Detect callbacks (no Extensions), so
+# stripes.Detect runs them in registration order against the file
+# bytes. Each fixture below exercises a different format's Detect.
+
+# logfmt: time=… level=… msg=…
+exec stripes --color=never -p cat logfmt.log
+stdout 'INFO'
+stdout 'WARN'
+stdout 'ERRO'
+stdout 'server starting'
+
+# nginx combined access log
+exec stripes --color=never -p cat nginx-access.log
+stdout 'GET / HTTP/1.1'
+stdout '200'
+stdout '404'
+stdout '500'
+
+# log4j / Kafka server.log shape
+exec stripes --color=never -p cat log4j.log
+stdout 'kafka.server.KafkaServer'
+stdout 'INFO'
+stdout 'WARN'
+stdout 'ERRO'
+
+# Python logging stdlib default
+exec stripes --color=never -p cat python.log
+stdout 'django.request'
+stdout 'application started'
+stdout 'FATA'
+
+# Go stdlib log
+exec stripes --color=never -p cat go-log.log
+stdout 'server starting on :8080'
+stdout '2026/01/15'
+
+# BSD syslog / journald short form
+exec stripes --color=never -p cat syslog-bsd.log
+stdout 'systemd'
+stdout 'sshd'
+stdout 'host │ myhost'
+
+# RFC 5424 syslog
+exec stripes --color=never -p cat syslog-rfc5424.log
+stdout 'evntslog'
+stdout 'mymachine.example.com'
+
+# Explicit --format=jsonlog (auto-detect falls through to the json
+# renderer because the Go runtime initializes json before textlog).
+exec stripes --color=never -p cat --format=jsonlog jsonlog.jsonl
+stdout 'INFO'
+stdout 'server starting'
+stdout 'db connection lost'
+
+-- logfmt.log --
+time=2026-01-15T10:23:45.123Z level=INFO msg="server starting" addr=:8080
+time=2026-01-15T10:23:46.058Z level=WARN msg="slow query" duration_ms=412
+time=2026-01-15T10:23:47.001Z level=ERROR msg="db connection lost" attempt=1
+-- nginx-access.log --
+127.0.0.1 - - [05/Feb/2026:17:11:55 +0000] "GET / HTTP/1.1" 200 612 "-" "Mozilla/5.0"
+198.51.100.7 - - [05/Feb/2026:17:11:59 +0000] "GET /missing HTTP/1.1" 404 162 "-" "Mozilla/5.0"
+10.0.0.2 - - [05/Feb/2026:17:12:00 +0000] "GET /api/health HTTP/1.1" 500 73 "-" "kube-probe/1.30"
+-- log4j.log --
+[2026-01-15 10:23:45,123] INFO [main] kafka.server.KafkaServer - starting
+[2026-01-15 10:23:46,058] WARN [Controller-0] kafka.controller.RequestSendThread - Connection failed
+[2026-01-15 10:23:47,001] ERROR [LogManager-0] kafka.log.LogManager - error in log cleaner thread
+-- python.log --
+2026-01-15 10:23:45,123 INFO root:42 application started
+2026-01-15 10:23:46,014 INFO django.request:200 GET /api/v1/users 200 OK
+2026-01-15 10:23:47,002 CRITICAL app.shutdown:300 fatal error, exiting
+-- go-log.log --
+2026/01/15 10:23:45 server starting on :8080
+2026/01/15 10:23:45 main.go:42: handler /api/v1/users registered
+2026/01/15 10:23:47 db.go:142: ERROR: connection reset by peer
+-- syslog-bsd.log --
+Jan 15 10:23:45 myhost systemd[1]: Started example.service.
+Jan 15 10:23:46 myhost sshd[42]: Accepted publickey for jdoe from 10.0.0.1
+Jan 15 10:23:47 myhost kernel: [12345.678] CPU0: thermal throttling
+-- syslog-rfc5424.log --
+<134>1 2003-10-11T22:14:15.003Z mymachine.example.com evntslog - ID47 - An application event log entry
+<11>1 2026-01-15T10:23:47.001Z host1.example.com myapp 4242 ID09 - db connection lost
+-- jsonlog.jsonl --
+{"time":"2026-01-15T10:23:45.123Z","level":"info","msg":"server starting","addr":":8080"}
+{"time":"2026-01-15T10:23:47.001Z","level":"error","msg":"db connection lost","attempt":1}

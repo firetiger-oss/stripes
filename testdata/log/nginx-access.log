@@ -1,0 +1,6 @@
+127.0.0.1 - - [05/Feb/2026:17:11:55 +0000] "GET / HTTP/1.1" 200 612 "-" "Mozilla/5.0 (compatible)"
+10.0.0.1 - jdoe [05/Feb/2026:17:11:56 +0000] "POST /api/login HTTP/1.1" 401 0 "https://example.com/" "curl/7.79.0"
+192.168.1.1 - - [05/Feb/2026:17:11:57 +0000] "GET /static/app.css HTTP/1.1" 200 18432 "https://example.com/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+203.0.113.42 - alice [05/Feb/2026:17:11:58 +0000] "PUT /api/items/100 HTTP/1.1" 204 0 "-" "MyApp/1.0"
+198.51.100.7 - - [05/Feb/2026:17:11:59 +0000] "GET /missing HTTP/1.1" 404 162 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_2_3)"
+10.0.0.2 - - [05/Feb/2026:17:12:00 +0000] "GET /api/health HTTP/1.1" 500 73 "-" "kube-probe/1.30"

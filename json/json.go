@@ -7,6 +7,7 @@ package json
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -64,14 +65,38 @@ func Render(w io.Writer, r io.Reader, styles *stripes.Styles) {
 	}
 }
 
-// detectJSON returns true when peek starts with '{' or '[' (after
-// leading whitespace).
+// detectJSON returns true when peek opens with what looks like a
+// complete JSON value. The check rejects payloads that just happen
+// to start with '{' or '[' but don't actually parse as JSON —
+// log4j's bracketed timestamps like "[2026-01-15 10:23:45,123] …"
+// are a common false positive a pure first-byte check would claim.
+//
+// The implementation skims the first value with [json.Decoder]: a
+// well-formed top-level object/array completes without error, and
+// truncated-but-otherwise-valid payloads (peek is only ~512 bytes)
+// surface as io.ErrUnexpectedEOF — also accepted, since "we ran out
+// of peek before the document ended" is consistent with valid JSON.
+// Other parse errors mean the bytes aren't JSON.
 func detectJSON(peek []byte) bool {
 	trimmed := bytes.TrimLeft(peek, " \t\r\n")
 	if len(trimmed) == 0 {
 		return false
 	}
-	return trimmed[0] == '{' || trimmed[0] == '['
+	if trimmed[0] != '{' && trimmed[0] != '[' {
+		return false
+	}
+	d := json.NewDecoder(bytes.NewReader(trimmed))
+	var raw json.RawMessage
+	err := d.Decode(&raw)
+	if err == nil {
+		return true
+	}
+	// A clean truncation inside an otherwise valid document is OK —
+	// we only see the first ~512 bytes.
+	if errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	return false
 }
 
 func printJSONValue(w io.Writer, d *json.Decoder, isKey bool, ctx *jsonContext, styles *stripes.Styles) error {

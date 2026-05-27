@@ -23,6 +23,7 @@ import (
 	// doctypes, so the ordering is belt-and-suspenders.
 	_ "github.com/firetiger-oss/stripes/html"
 	_ "github.com/firetiger-oss/stripes/json"
+	_ "github.com/firetiger-oss/stripes/log"
 	_ "github.com/firetiger-oss/stripes/markdown"
 	_ "github.com/firetiger-oss/stripes/parquet"
 	_ "github.com/firetiger-oss/stripes/protobuf"
