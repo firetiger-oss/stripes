@@ -388,6 +388,12 @@ func renderHeading(w io.Writer, h *ast.Heading, ctx *mdContext) {
 			// per-rune rendering (it does that when its own .Underline(true)
 			// is set under the TrueColor profile). Re-apply after every
 			// internal reset so the underline spans the full heading.
+			// Goldmark splits multi-word headings at the last space into
+			// separate Text nodes, and lipgloss emits "\x1b[m" (the
+			// parameterless shorthand for "\x1b[0m") between styled
+			// segments — match both forms so the underline survives the
+			// reset and reaches the end of the heading.
+			body = strings.ReplaceAll(body, "\x1b[m", "\x1b[m\x1b[4m")
 			body = strings.ReplaceAll(body, "\x1b[0m", "\x1b[0m\x1b[4m")
 			body = strings.ReplaceAll(body, "\x1b[24m", "\x1b[24m\x1b[4m")
 			body = "\x1b[4m" + body + "\x1b[24m"

@@ -302,6 +302,41 @@ func TestMarkdownParagraphWrap(t *testing.T) {
 	}
 }
 
+// TestMarkdownH2UnderlineSpansFullHeading checks that the SGR underline
+// applied to a level-2 heading reaches the end of the text. Goldmark splits
+// multi-word headings at the last space into two Text nodes, and lipgloss
+// emits "\x1b[m" between segments — if the underline isn't re-asserted
+// after every reset, the trailing word renders without underline (visible
+// as a short underline that stops part-way through the heading).
+func TestMarkdownH2UnderlineSpansFullHeading(t *testing.T) {
+	for _, input := range []string{
+		"## The data model",
+		"The data model\n--------",
+	} {
+		t.Run(input, func(t *testing.T) {
+			var buf strings.Builder
+			Render(&buf, strings.NewReader(input), stripes.DefaultStyles)
+			out := buf.String()
+			// Locate the last byte of visible heading text. The closing
+			// "\x1b[24m" (underline off) must come at or after it, with
+			// no intervening "\x1b[m" or "\x1b[24m" that would leave the
+			// trailing word unstyled.
+			endIdx := strings.LastIndex(out, "model")
+			if endIdx < 0 {
+				t.Fatalf("output missing heading text: %q", out)
+			}
+			endIdx += len("model")
+			tail := out[:endIdx]
+			lastReset := strings.LastIndex(tail, "\x1b[m")
+			lastResetU := strings.LastIndex(tail, "\x1b[24m")
+			lastReapply := strings.LastIndex(tail, "\x1b[4m")
+			if lastReset > lastReapply || lastResetU > lastReapply {
+				t.Errorf("h2 underline cleared before end of heading\noutput: %q", out)
+			}
+		})
+	}
+}
+
 func TestMarkdownTable(t *testing.T) {
 	input := "| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |"
 	var buf strings.Builder
