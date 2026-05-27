@@ -160,3 +160,79 @@ message AllOfSchema {
 		}
 	}
 }
+
+// TestRulesLexerTokens locks down the Go SSA rewrite-rules lexer:
+//   - the dispatch in resolveLexer routes any of the rules aliases to it
+//   - PascalCase op names (Add64, I64Mul, MakeTuple) emit NameFunction
+//   - <type> annotations push a state where the inner identifier is
+//     KeywordType
+//   - [auxint] keeps numbers / bools / Go-call expressions in normal
+//     token types, brackets are Punctuation
+//   - {aux} tags the inner symbol as NameTag
+//   - the rule arrow `=>`, the guard `&&`, and the shift `<<` are all
+//     Operators (the `<<` regression: an earlier draft routed `<` to a
+//     type-state push unconditionally, breaking `1<<31`)
+//   - binding labels `x:` emit NameLabel + Punctuation
+//   - wildcards `...` and `___` emit NameBuiltinPseudo
+//   - lowercase captures (`x`, `y`, `v.Args`) stay Name
+func TestRulesLexerTokens(t *testing.T) {
+	for _, alias := range []string{"Go SSA Rules", "go-ssa-rules", "rules"} {
+		if got := resolveLexer(alias, nil); got != rulesLexer {
+			t.Fatalf("resolveLexer(%q) returned the wrong lexer", alias)
+		}
+	}
+
+	src := `// header comment
+(Last ___) => v.Args[len(v.Args)-1]
+(Add(64|32) ...) => (I64Add ...)
+(Hmul64 <t> x y) => (MakeTuple <t> x y)
+(Load <t1> p1 (Store {t2} p2 x _))
+(Cvt32Fto32 (Const32F [c])) && c >= -1<<31 && c < 1<<31 => (Const32 [int32(c)])
+(Round32F x:(Const32F)) => x
+(CvtBoolToUint8 (ConstBool [false])) => (Const8 [0])
+`
+	iter, err := rulesLexer.Tokenise(nil, src)
+	if err != nil {
+		t.Fatalf("tokenise: %v", err)
+	}
+	got := map[string]chroma.TokenType{}
+	for tok := iter(); tok != chroma.EOF; tok = iter() {
+		v := strings.TrimSpace(tok.Value)
+		if v == "" {
+			continue
+		}
+		if _, seen := got[v]; !seen {
+			got[v] = tok.Type
+		}
+	}
+
+	want := map[string]chroma.TokenType{
+		"// header comment": chroma.CommentSingle,
+		"Last":              chroma.NameFunction,
+		"I64Add":            chroma.NameFunction,
+		"Hmul64":            chroma.NameFunction,
+		"MakeTuple":         chroma.NameFunction,
+		"Add":               chroma.NameFunction,
+		"Const32F":          chroma.NameFunction,
+		"Round32F":          chroma.NameFunction,
+		"Store":             chroma.NameFunction,
+		"___":               chroma.NameBuiltinPseudo,
+		"...":               chroma.NameBuiltinPseudo,
+		"=>":                chroma.Operator,
+		"&&":                chroma.Operator,
+		"<<":                chroma.Operator,
+		">=":                chroma.Operator,
+		"t":                 chroma.KeywordType,
+		"t1":                chroma.KeywordType,
+		"t2":                chroma.NameTag,
+		"false":             chroma.KeywordConstant,
+		"v.Args":            chroma.Name,
+		"31":                chroma.LiteralNumberInteger,
+		"0":                 chroma.LiteralNumberInteger,
+	}
+	for v, wantType := range want {
+		if got[v] != wantType {
+			t.Errorf("token %q = %s, want %s", v, got[v], wantType)
+		}
+	}
+}

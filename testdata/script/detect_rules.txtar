@@ -1,0 +1,19 @@
+# Go SSA *.rules files are highlighted by the custom rulesLexer in the
+# code package.
+
+# --color=always: ANSI escapes appear in the highlighted output.
+exec stripes --color=always -p cat input.rules
+stdout '\x1b\['
+
+# --color=never: output is byte-identical to the source file.
+exec stripes --color=never -p cat input.rules
+cmp stdout input.rules
+
+-- input.rules --
+// Copyright header.
+(Last ___) => v.Args[len(v.Args)-1]
+
+// Lowering arithmetic
+(Add(64|32) ...) => (I64Add ...)
+(Hmul64 <t> x y) => (MakeTuple <t> x y)
+(Cvt32Fto32 (Const32F [c])) && c >= -1<<31 && c < 1<<31 => (Const32 [int32(c)])

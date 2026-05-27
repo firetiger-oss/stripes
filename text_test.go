@@ -56,3 +56,47 @@ func TestTextWrapping(t *testing.T) {
 		})
 	}
 }
+
+// TestTextNoTrailingPadding guards against the lipgloss multi-line render
+// padding: rendering a multi-line block with a styled Text in one call
+// pads every line with spaces to the longest line. In narrow terminals
+// that padding wraps and looks like an empty line after every source
+// line. Text now renders one line at a time, so each output line must
+// match the visible content with no trailing whitespace before the
+// newline.
+func TestTextNoTrailingPadding(t *testing.T) {
+	input := "short\na much longer line of text here\nmid\n"
+	var buf bytes.Buffer
+	styles := DefaultStyles.Clone()
+	styles.Width = 0 // disable wrapping
+	Text(&buf, strings.NewReader(input), styles)
+
+	for i, line := range strings.Split(buf.String(), "\n") {
+		// Strip ANSI escapes; whatever is left must not end in a space.
+		stripped := stripANSI(line)
+		if strings.HasSuffix(stripped, " ") {
+			t.Errorf("line %d ends with trailing space: %q", i, stripped)
+		}
+	}
+}
+
+// stripANSI removes CSI escape sequences for length-sensitive assertions.
+func stripANSI(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); {
+		if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '[' {
+			j := i + 2
+			for j < len(s) && (s[j] < 0x40 || s[j] > 0x7e) {
+				j++
+			}
+			if j < len(s) {
+				j++
+			}
+			i = j
+			continue
+		}
+		b.WriteByte(s[i])
+		i++
+	}
+	return b.String()
+}
