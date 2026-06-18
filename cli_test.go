@@ -83,6 +83,16 @@ func TestMain(m *testing.M) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/":
+			// A root URL carries no object key; redirect it to a real
+			// endpoint so the test exercises both the empty-key path and
+			// redirect following.
+			http.Redirect(w, r, "/redirected/data.json", http.StatusFound)
+			return
+		case "/redirected/data.json":
+			w.Header().Set("Content-Type", testHTTPHeader)
+			_, _ = w.Write([]byte(testHTTPBody))
+			return
 		case "/basic/data.json":
 			if user, pass, ok := r.BasicAuth(); !ok || user != testBasicUser || pass != testBasicPass {
 				w.Header().Set("WWW-Authenticate", `Basic realm="stripes-test"`)
@@ -112,6 +122,7 @@ func TestMain(m *testing.M) {
 	defer srv.Close()
 
 	os.Setenv("STRIPES_TEST_BIN", binDir)
+	os.Setenv("STRIPES_TEST_HTTP_ROOT", srv.URL+"/")
 	os.Setenv("STRIPES_TEST_HTTP_BASIC", srv.URL+"/basic/data.json")
 	os.Setenv("STRIPES_TEST_HTTP_BEARER", srv.URL+"/bearer/data.json")
 	os.Setenv("STRIPES_TEST_HTTP_PROTOBUF", srv.URL+"/proto/keyvalue")
@@ -137,6 +148,7 @@ func TestCLI(t *testing.T) {
 			env.Setenv("PATH", binDir+string(os.PathListSeparator)+env.Getenv("PATH"))
 			env.Setenv("NO_COLOR", "")
 			env.Setenv("PAGER", "")
+			env.Setenv("STRIPES_TEST_HTTP_ROOT", os.Getenv("STRIPES_TEST_HTTP_ROOT"))
 			env.Setenv("STRIPES_TEST_HTTP_BASIC", os.Getenv("STRIPES_TEST_HTTP_BASIC"))
 			env.Setenv("STRIPES_TEST_HTTP_BEARER", os.Getenv("STRIPES_TEST_HTTP_BEARER"))
 			env.Setenv("STRIPES_TEST_HTTP_PROTOBUF", os.Getenv("STRIPES_TEST_HTTP_PROTOBUF"))

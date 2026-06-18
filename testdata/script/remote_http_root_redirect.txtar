@@ -1,0 +1,8 @@
+# A root http(s):// URL carries no object key (the path is just "/").
+# stripes fetches plain http(s) URLs directly with net/http rather than
+# through tigerblock's object-storage layer, which would reject the empty
+# key with "invalid object key ()". The direct fetch also follows the
+# server's 302 redirect and renders the final response.
+exec stripes --color=never -p cat $STRIPES_TEST_HTTP_ROOT
+stdout '"ok"'
+stdout 'true'

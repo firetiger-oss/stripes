@@ -266,7 +266,7 @@ func run(ctx context.Context, cfg *config, files []string) error {
 
 	for i, file := range files {
 		if err := func() error {
-			rc, info, err := storage.GetObject(ctx, file)
+			rc, contentType, contentEncoding, err := openInput(ctx, file)
 			if err != nil {
 				return err
 			}
@@ -276,7 +276,7 @@ func run(ctx context.Context, cfg *config, files []string) error {
 			// compressed (vanilla .log.gz objects on S3 typically
 			// don't carry Content-Encoding), fall back to a
 			// recognised compression suffix on the filename.
-			r, err := decompress(rc, effectiveEncoding(file, info.ContentEncoding))
+			r, err := decompress(rc, effectiveEncoding(file, contentEncoding))
 			if err != nil {
 				return err
 			}
@@ -291,7 +291,7 @@ func run(ctx context.Context, cfg *config, files []string) error {
 			// Detection sees the post-decompression filename:
 			// "foo.log.gz" → "foo.log" so the inner extension
 			// drives format selection.
-			renderOne(sink, stripEncodingSuffix(displayName(file)), info.ContentType, r, cfg, styles)
+			renderOne(sink, stripEncodingSuffix(displayName(file)), contentType, r, cfg, styles)
 			return nil
 		}(); err != nil {
 			_ = finish()
@@ -299,6 +299,53 @@ func run(ctx context.Context, cfg *config, files []string) error {
 		}
 	}
 	return finish()
+}
+
+// openInput resolves a single CLI argument to a byte stream plus the
+// server-advertised content metadata (content-type, content-encoding).
+//
+// Plain http(s):// URLs are fetched directly with net/http: this follows
+// redirects and works for root URLs that carry no object key (e.g.
+// "http://host/"). tigerblock's storage layer models http(s) as an
+// S3-style object store keyed by the request path, so it rejects an
+// empty key with "invalid object key ()" before any request is made.
+// Every other scheme (s3, gs, file, …) and bare filesystem paths still
+// go through tigerblock storage.
+func openInput(ctx context.Context, arg string) (io.ReadCloser, string, string, error) {
+	if isHTTPURL(arg) {
+		return fetchHTTP(ctx, arg)
+	}
+	rc, info, err := storage.GetObject(ctx, arg)
+	if err != nil {
+		return nil, "", "", err
+	}
+	return rc, info.ContentType, info.ContentEncoding, nil
+}
+
+func isHTTPURL(arg string) bool {
+	return strings.HasPrefix(arg, "http://") || strings.HasPrefix(arg, "https://")
+}
+
+// fetchHTTP performs a GET against rawURL using http.DefaultClient, which
+// follows redirects and honours the auth transport installed by run() for
+// --basic-auth / --bearer-token. It returns the response body together
+// with the Content-Type and Content-Encoding headers from the final
+// (post-redirect) response. Non-2xx statuses are turned into an error so
+// stripes doesn't render an error page as if it were the requested data.
+func fetchHTTP(ctx context.Context, rawURL string) (io.ReadCloser, string, string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, "", "", err
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, "", "", err
+	}
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		res.Body.Close()
+		return nil, "", "", fmt.Errorf("%s: %s", rawURL, res.Status)
+	}
+	return res.Body, res.Header.Get("Content-Type"), res.Header.Get("Content-Encoding"), nil
 }
 
 // anyImageInput reports whether any file in files (or the explicit
