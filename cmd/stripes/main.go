@@ -400,6 +400,17 @@ func renderOne(sink io.Writer, name, contentTypeHint string, input io.Reader, cf
 	if contentType == "" {
 		contentType = contentTypeHint
 	}
+	// A text/plain hint is the generic "I don't know" default that many
+	// servers send for every file (e.g. raw.githubusercontent.com serves
+	// Markdown, CSV, and source code all as text/plain; charset=utf-8).
+	// Treat it as a weak hint: if the filename extension and content sniff
+	// point at a more specific type, prefer that so a .md URL still renders
+	// as Markdown. The charset (or any other) parameter is ignored.
+	if mediaType, _, _ := mime.ParseMediaType(contentType); mediaType == "text/plain" {
+		if detected := stripes.Detect(name, peek); detected != "" && detected != "text/plain" {
+			contentType = detected
+		}
+	}
 	if contentType == "" {
 		contentType = stripes.Detect(name, peek)
 	}
